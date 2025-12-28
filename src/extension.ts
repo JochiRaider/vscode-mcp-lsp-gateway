@@ -243,6 +243,9 @@ class ExtensionRuntime {
       serverInfo,
       enableSessions: settings.enableSessions,
       schemaRegistry,
+      maxItemsPerPage: settings.maxItemsPerPage,
+      maxResponseBytes: settings.maxResponseBytes,
+      requestTimeoutMs: settings.requestTimeoutMs,
       allowedRootsRealpaths,
       // Keep fail-closed unless you have a reproduced interop issue + a smoke test.
       allowMissingProtocolVersionOnInitializedNotification: false,
@@ -255,10 +258,16 @@ class ExtensionRuntime {
       onMcpPost,
     });
 
-    await this.server.start();
-    this.lastStartKey = startKey;
-
-    this.output.appendLine(`[info] MCP server listening on ${buildBaseUrl(settings)} (localhost-only).`);
+    try {
+      await this.server.start();
+      this.lastStartKey = startKey;
+      this.output.appendLine(`[info] MCP server listening on ${buildBaseUrl(settings)} (localhost-only).`);
+    } catch (err) {
+      this.output.appendLine(
+        `[error] Failed to start MCP server; it will remain stopped. ${String(err).slice(0, 500)}`,
+      );
+      await this.stopServer();
+    }
   }
 
   public scheduleRestart(context: vscode.ExtensionContext): void {

@@ -51,6 +51,9 @@ export class HttpServer {
 
     const logger = createLogger(this.deps.output, { debugEnabled: settings.debugLogging });
     const auth = await AuthVerifier.createFromSecretStorage(this.deps.secrets, settings.secretStorageKey);
+    if (auth.getTokenCount() === 0) {
+      throw new Error("No bearer tokens configured; refusing to start.");
+    }
 
     const requestListener = createRouter({
       endpointPath: settings.endpointPath,

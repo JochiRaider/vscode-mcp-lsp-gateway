@@ -29,6 +29,9 @@ import { handleDiagnosticsDocument } from "./handlers/diagnosticsDocument.js";
 import { handleDiagnosticsWorkspace } from "./handlers/diagnosticsWorkspace.js";
 
 const ERROR_CODE_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
+const ERROR_CODE_CAP_EXCEEDED = "MCP_LSP_GATEWAY/CAP_EXCEEDED" as const;
+const MAX_PAGE_SIZE = 200;
+const MAX_CONTENT_SUMMARY_CHARS = 200;
 
 export type ToolsListResult = Readonly<{ tools: readonly ToolCatalogEntry[] }>;
 
@@ -55,6 +58,8 @@ export type ToolsDispatcherDeps = Readonly<{
   schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
+  maxItemsPerPage: number;
+  requestTimeoutMs: number;
 }>;
 
 type HandlerResult =
@@ -123,13 +128,24 @@ export async function dispatchToolCall(toolName: string, args: unknown, deps: To
     return { ok: false, error: invalidParamsUnknownTool(toolName) };
   }
 
+  const validated = deps.schemaRegistry.validateInput(toolName, args);
+  if (!validated.ok) {
+    return { ok: false, error: validated.error };
+  }
+
   const handler = ROUTES[toolName];
   // Defensive: should be impossible if ROUTES covers V1ToolName.
   if (!handler) {
     return { ok: false, error: invalidParamsUnknownTool(toolName) };
   }
 
-  const r = await handler(args, deps);
+  const normalizedArgs = normalizeValidatedArgs(validated.value, deps.maxItemsPerPage);
+  const raced = await withTimeout(handler(normalizedArgs, deps), deps.requestTimeoutMs);
+  if (raced.timedOut) {
+    return { ok: false, error: capExceededError("Request timed out.") };
+  }
+
+  const r = raced.value;
 
   if (!r.ok) {
     // Tool-level errors are surfaced as JSON-RPC errors (per Step 8 contract).
@@ -140,7 +156,8 @@ export async function dispatchToolCall(toolName: string, args: unknown, deps: To
 }
 
 function toToolCallResult(structuredContent: unknown): ToolCallResult {
-  const text = safeStableJson(structuredContent);
+  const summary = extractSummary(structuredContent);
+  const text = summary ?? "OK";
 
   return {
     isError: false,
@@ -149,17 +166,73 @@ function toToolCallResult(structuredContent: unknown): ToolCallResult {
   } as const;
 }
 
-function safeStableJson(v: unknown): string {
+function extractSummary(v: unknown): string | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const summary = (v as Record<string, unknown>).summary;
+  if (typeof summary !== "string") return undefined;
+  const normalized = summary.replace(/\s+/g, " ").trim();
+  if (normalized.length === 0) return undefined;
+  return normalized.length > MAX_CONTENT_SUMMARY_CHARS ? normalized.slice(0, MAX_CONTENT_SUMMARY_CHARS) : normalized;
+}
+
+type TimeoutResult<T> = Readonly<{ timedOut: true }> | Readonly<{ timedOut: false; value: T }>;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<TimeoutResult<T>> {
+  const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : 1;
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  const timeout = new Promise<TimeoutResult<T>>((resolve) => {
+    timeoutId = setTimeout(() => resolve({ timedOut: true }), safeTimeoutMs);
+  });
+
+  const raced = Promise.race([
+    promise.then((value) => ({ timedOut: false as const, value })),
+    timeout,
+  ]);
   try {
-    // Deterministic for plain objects/arrays constructed deterministically by handlers.
-    return JSON.stringify(v);
-  } catch {
-    // Fail-closed and bounded: do not throw from dispatcher.
-    return JSON.stringify({
-      ok: false,
-      error: { code: "MCP_LSP_GATEWAY/INTERNAL_ERROR", message: "Failed to serialize tool result." },
-    });
+    return await raced;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
+}
+
+function normalizeValidatedArgs(value: unknown, maxItemsPerPage: number): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const rec = value as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(rec, "pageSize")) return value;
+
+  const pageSize = rec.pageSize;
+  if (typeof pageSize !== "number" || !Number.isInteger(pageSize)) return value;
+
+  const maxPageSize = clampMaxItemsPerPage(maxItemsPerPage);
+  const clamped = clampInt(pageSize, 1, maxPageSize);
+  if (clamped === pageSize) return value;
+
+  return { ...rec, pageSize: clamped };
+}
+
+function clampMaxItemsPerPage(value: number): number {
+  if (!Number.isFinite(value) || !Number.isInteger(value)) return MAX_PAGE_SIZE;
+  if (value < 1) return 1;
+  if (value > MAX_PAGE_SIZE) return MAX_PAGE_SIZE;
+  return value;
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function capExceededError(message: string): JsonRpcErrorObject {
+  const data: Record<string, unknown> = { code: ERROR_CODE_CAP_EXCEEDED };
+  const trimmed = message.trim();
+  if (trimmed.length > 0) data.message = trimmed;
+  return {
+    code: -32603,
+    message: "Internal error",
+    data,
+  };
 }
 
 function invalidParamsUnknownTool(tool: string): JsonRpcErrorObject {

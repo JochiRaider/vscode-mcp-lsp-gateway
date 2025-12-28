@@ -35,7 +35,7 @@
 - `docs/PROTOCOL.md` — Streamable HTTP transport contract (MCP 2025-11-25): headers, status codes, lifecycle.
 - `docs/CONTRACT.md` — tool catalog, determinism rules, paging, caps/timeouts, error taxonomy.
 - `docs/SECURITY.md` — threat model + enforced controls (auth/origin/roots/redaction/no outbound net).
-- `schemas/` — per-tool input/output JSON Schemas (Ajv-validated).
+- `schemas/` — per-tool input JSON Schemas (Ajv-validated; output schemas may be added later).
 - `src/` — VS Code extension + local HTTP server + tool handlers.
 - `test/` — unit + integration tests.
 - `dist/` — compiled extension output (generated).
@@ -90,7 +90,8 @@
 
 ## Validation and logging rules
 - Validation:
-  - Ajv validates tool inputs and structured outputs against JSON Schemas.
+  - Ajv validates tool inputs against JSON Schemas.
+  - Output shapes are defined in `docs/CONTRACT.md`; output schemas may be added later.
   - Transport and JSON-RPC envelope handling must fail closed (do not accept ambiguous shapes).
 - Logging:
   - Default logs must not contain bearer tokens, session IDs, raw request bodies, or out-of-root paths.

@@ -33,6 +33,9 @@ export type CreateMcpPostHandlerOptions = Readonly<{
   serverInfo: McpServerInfo;
   enableSessions: boolean;
   schemaRegistry: SchemaRegistry;
+  maxItemsPerPage: number;
+  maxResponseBytes: number;
+  requestTimeoutMs: number;
   /**
    * Canonical realpaths of allowlisted roots (workspace folders + additional roots).
    */
@@ -58,6 +61,7 @@ type InitializeResult = Readonly<{
 }>;
 
 const ERR_CURSOR_INVALID = "MCP_LSP_GATEWAY/CURSOR_INVALID" as const;
+const ERR_CAP_EXCEEDED = "MCP_LSP_GATEWAY/CAP_EXCEEDED" as const;
 const ERR_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
 const ERR_PROVIDER_UNAVAILABLE = "MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE" as const;
 
@@ -298,10 +302,16 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       const dispatched = await dispatchToolCall(toolName, args, {
         schemaRegistry: opts.schemaRegistry,
         allowedRootsRealpaths: opts.allowedRootsRealpaths,
+        maxItemsPerPage: opts.maxItemsPerPage,
+        requestTimeoutMs: opts.requestTimeoutMs,
       });
 
       if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
-      return jsonRpcResultResponse(req.id, dispatched.result);
+      const response = jsonRpcResultResponse(req.id, dispatched.result);
+      if (response.bodyText && exceedsMaxResponseBytes(response.bodyText, opts.maxResponseBytes)) {
+        return jsonRpcErrorResponse(req.id, capExceededError("Response exceeded maxResponseBytes."));
+      }
+      return response;
     }
 
     // Default: method not found.
@@ -329,6 +339,22 @@ function jsonRpcErrorResponse(id: JsonRpcId, error: JsonRpcErrorObject): McpPost
     status: 200,
     bodyText,
   };
+}
+
+function capExceededError(message: string): JsonRpcErrorObject {
+  const data: Record<string, unknown> = { code: ERR_CAP_EXCEEDED };
+  const trimmed = message.trim();
+  if (trimmed.length > 0) data.message = trimmed;
+  return {
+    code: -32603,
+    message: "Internal error",
+    data,
+  };
+}
+
+function exceedsMaxResponseBytes(bodyText: string, maxResponseBytes: number): boolean {
+  if (!Number.isFinite(maxResponseBytes) || maxResponseBytes <= 0) return false;
+  return Buffer.byteLength(bodyText, "utf8") > Math.floor(maxResponseBytes);
 }
 
 function getProtocolVersionParam(params: unknown): string | undefined {

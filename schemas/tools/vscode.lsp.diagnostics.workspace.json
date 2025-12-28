@@ -15,7 +15,6 @@
     "pageSize": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 200,
       "default": 100,
       "description": "Maximum number of files to include in this page."
     }

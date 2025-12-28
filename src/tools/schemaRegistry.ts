@@ -112,14 +112,15 @@ export class SchemaRegistry {
    */
   public validateInput(toolName: string, args: unknown): ValidateInputResult {
     if (!isV1ToolName(toolName)) {
+      const safeTool = normalizeToolName(toolName);
       return {
         ok: false,
         error: {
           code: -32602,
           message: "Invalid params",
           data: {
-            code: ERROR_CODE_PROVIDER_UNAVAILABLE,
-            tool: toolName,
+            code: ERROR_CODE_INVALID_PARAMS,
+            ...(safeTool ? { tool: safeTool } : {}),
           },
         },
       };
@@ -128,14 +129,15 @@ export class SchemaRegistry {
     const validate = this.validateByTool.get(toolName);
     if (!validate) {
       // Should never happen if create() succeeded, but fail closed deterministically.
+      const safeTool = normalizeToolName(toolName);
       return {
         ok: false,
         error: {
           code: -32602,
           message: "Invalid params",
           data: {
-            code: ERROR_CODE_PROVIDER_UNAVAILABLE,
-            tool: toolName,
+            code: ERROR_CODE_INVALID_PARAMS,
+            ...(safeTool ? { tool: safeTool } : {}),
           },
         },
       };
@@ -148,6 +150,7 @@ export class SchemaRegistry {
     }
 
     const issues = formatAjvErrors(validate.errors);
+    const safeTool = normalizeToolName(toolName);
 
     return {
       ok: false,
@@ -156,7 +159,7 @@ export class SchemaRegistry {
         message: "Invalid params",
         data: {
           code: ERROR_CODE_INVALID_PARAMS,
-          tool: toolName,
+          ...(safeTool ? { tool: safeTool } : {}),
           issues,
         },
       },
@@ -223,4 +226,11 @@ function formatAjvErrors(errors: ErrorObject[] | null | undefined): readonly Ajv
   // Bound output (DoS + log bloat guard).
   const MAX_ISSUES = 10;
   return issues.length > MAX_ISSUES ? issues.slice(0, MAX_ISSUES) : issues;
+}
+
+function normalizeToolName(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = v.trim();
+  if (s.length === 0) return undefined;
+  return s.length > 200 ? s.slice(0, 200) : s;
 }
