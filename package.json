@@ -3,6 +3,7 @@
   "displayName": "LSP Gateway (MCP)",
   "description": "Local-only, read-only MCP server (Protocol 2025-11-25) exposing VS Code language features to GPT-5.2-Codex over Streamable HTTP.",
   "version": "0.1.0",
+  "type": "module",
   "publisher": "your-publisher",
   "license": "MIT",
   "repository": {

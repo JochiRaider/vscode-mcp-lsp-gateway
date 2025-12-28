@@ -1,7 +1,7 @@
 import * as http from "node:http";
-import type { Logger } from "../logging/redact";
-import { checkOrigin } from "./origin";
-import type { AuthVerifier } from "./auth";
+import type { Logger } from "../logging/redact.js";
+import { checkOrigin } from "./origin.js";
+import type { AuthVerifier } from "./auth.js";
 
 export const MAX_REQUEST_BYTES = 1024 * 1024; // 1 MiB (hard cap)
 

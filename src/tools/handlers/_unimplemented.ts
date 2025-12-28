@@ -11,7 +11,7 @@
 // so callers typically use the default (-32603). This helper supports -32602 when
 // the caller needs an explicit invalid-params code.
 
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc";
+import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
 
 export const ERROR_CODE_PROVIDER_UNAVAILABLE = "MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE" as const;
 

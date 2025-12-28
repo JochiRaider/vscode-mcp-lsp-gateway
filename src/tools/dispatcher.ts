@@ -14,18 +14,19 @@
 // - If you later refactor handlers to assume validated/gated input, move Ajv + gating here and
 //   simplify handlers accordingly.
 
-import type { JsonRpcErrorObject } from "../mcp/jsonrpc";
-import { buildV1ToolCatalog, isV1ToolName, type ToolCatalogEntry, type V1ToolName } from "./catalog";
-import type { SchemaRegistry } from "./schemaRegistry";
+import type { JsonRpcErrorObject } from "../mcp/jsonrpc.js";
+import { buildV1ToolCatalog, isV1ToolName, type ToolCatalogEntry, type V1ToolName } from "./catalog.js";
+import type { SchemaRegistry } from "./schemaRegistry.js";
 
 // Handlers
-import { handleDefinition } from "./handlers/definition";
-import { handleReferences } from "./handlers/references";
-import { handleHover } from "./handlers/hover";
-import { handleDocumentSymbols } from "./handlers/documentSymbols";
-import { handleWorkspaceSymbols } from "./handlers/workspaceSymbols";
-import { handleDiagnosticsDocument } from "./handlers/diagnosticsDocument";
-import { handleDiagnosticsWorkspace } from "./handlers/diagnosticsWorkspace";
+import { handleDefinition } from "./handlers/definition.js";
+import type { DefinitionInput } from "./handlers/definition.js";
+import { handleReferences } from "./handlers/references.js";
+import { handleHover } from "./handlers/hover.js";
+import { handleDocumentSymbols } from "./handlers/documentSymbols.js";
+import { handleWorkspaceSymbols } from "./handlers/workspaceSymbols.js";
+import { handleDiagnosticsDocument } from "./handlers/diagnosticsDocument.js";
+import { handleDiagnosticsWorkspace } from "./handlers/diagnosticsWorkspace.js";
 
 const ERROR_CODE_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
 
@@ -65,7 +66,7 @@ type RoutedHandler = (args: unknown, deps: ToolsDispatcherDeps) => Promise<Handl
 const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
   "vscode.lsp.definition": async (args, deps) => {
     // Definition handler expects a typed input; it also does defensive validation internally.
-    return await handleDefinition(args as any, { allowedRootsRealpaths: deps.allowedRootsRealpaths });
+    return await handleDefinition(args as DefinitionInput, { allowedRootsRealpaths: deps.allowedRootsRealpaths });
   },
 
   "vscode.lsp.references": async (args, deps) => {

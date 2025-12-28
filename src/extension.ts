@@ -1,11 +1,11 @@
 // src/extensions.ts
 
 import * as vscode from "vscode";
-import { createMcpPostHandler } from "./mcp/handler";
-import type { McpPostHandler } from "./server/router";
-import { SchemaRegistry } from "./tools/schemaRegistry";
-import { HttpServer } from "./server/httpServer";
-import { computeAllowedRoots } from "./workspace/roots";
+import { createMcpPostHandler } from "./mcp/handler.js";
+import type { McpPostHandler } from "./server/router.js";
+import { SchemaRegistry } from "./tools/schemaRegistry.js";
+import { HttpServer } from "./server/httpServer.js";
+import { computeAllowedRoots } from "./workspace/roots.js";
 
 type GatewaySettings = Readonly<{
   enabled: boolean;

@@ -10,8 +10,8 @@
 // - Enforces MAX_ITEMS_NONPAGED via deterministic truncation.
 
 import * as vscode from "vscode";
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc";
-import { canonicalizeAndGateFileUri, canonicalizeFileUri, isRealPathAllowed } from "../../workspace/uri";
+import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
+import { canonicalizeAndGateFileUri, canonicalizeFileUri, isRealPathAllowed } from "../../workspace/uri.js";
 
 const MAX_ITEMS_NONPAGED = 200;
 

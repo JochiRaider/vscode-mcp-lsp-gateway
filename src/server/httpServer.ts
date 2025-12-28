@@ -1,8 +1,8 @@
 import * as http from "node:http";
 import type * as vscode from "vscode";
-import { createLogger } from "../logging/redact";
-import { AuthVerifier } from "./auth";
-import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from "./router";
+import { createLogger } from "../logging/redact.js";
+import { AuthVerifier } from "./auth.js";
+import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from "./router.js";
 
 export type GatewaySettings = Readonly<{
   enabled: boolean;

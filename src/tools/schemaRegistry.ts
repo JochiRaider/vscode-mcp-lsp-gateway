@@ -16,15 +16,15 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
+import { Ajv, type ErrorObject, type ValidateFunction } from "ajv";
 
-import type { JsonRpcErrorObject } from "../mcp/jsonrpc";
+import type { JsonRpcErrorObject } from "../mcp/jsonrpc.js";
 import {
   V1_TOOL_NAMES,
   type V1ToolName,
   type JsonSchemaObject,
   isV1ToolName,
-} from "./catalog";
+} from "./catalog.js";
 
 export const TOOL_SCHEMA_DIR = path.join("schemas", "tools");
 

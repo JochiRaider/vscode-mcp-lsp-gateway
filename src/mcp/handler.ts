@@ -11,17 +11,17 @@
 //   be enforced before this handler is invoked.
 // - All HTTP-layer rejections return empty bodies (fail-closed), even for JSON-RPC requests with ids.
 
-import { createSessionStore, type SessionStore } from "../server/session";
-import type { McpPostContext, McpPostHandler, McpPostResult } from "../server/router";
+import { createSessionStore, type SessionStore } from "../server/session.js";
+import type { McpPostContext, McpPostHandler, McpPostResult } from "../server/router.js";
 import {
   parseJsonRpcMessage,
   type JsonRpcId,
   type JsonRpcErrorObject,
   type JsonRpcRequest,
   type JsonRpcNotification,
-} from "./jsonrpc";
-import { dispatchToolsList, dispatchToolCall } from "../tools/dispatcher";
-import type { SchemaRegistry } from "../tools/schemaRegistry";
+} from "./jsonrpc.js";
+import { dispatchToolsList, dispatchToolCall } from "../tools/dispatcher.js";
+import type { SchemaRegistry } from "../tools/schemaRegistry.js";
 
 export type McpServerInfo = Readonly<{
   name: string;
@@ -277,8 +277,6 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         });
       }
 
-      const tools = buildV1ToolCatalog((name) => opts.schemaRegistry.getInputSchema(name));
-
       // MCP semantics: { tools: [...], nextCursor?: undefined }
       return jsonRpcResultResponse(req.id, dispatchToolsList(opts.schemaRegistry));
     }
@@ -311,13 +309,18 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
   };
 }
 
-function jsonRpcResultResponse(id: JsonRpcId, result: unknown, headers?: Record<string, string>): McpPostResult {
+function jsonRpcResultResponse(
+  id: JsonRpcId,
+  result: unknown,
+  headers?: Readonly<Record<string, string>>,
+): McpPostResult {
   const bodyText = JSON.stringify({ jsonrpc: "2.0", id, result });
-  return {
+  const response: McpPostResult = {
     status: 200,
-    headers,
+    ...(headers ? { headers } : {}),
     bodyText,
   };
+  return response;
 }
 
 function jsonRpcErrorResponse(id: JsonRpcId, error: JsonRpcErrorObject): McpPostResult {

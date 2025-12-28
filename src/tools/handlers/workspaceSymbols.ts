@@ -6,10 +6,10 @@
 //   (this tool’s v1 schema should NOT, but this keeps the stub generic and future-proof)
 // - Always returns deterministic PROVIDER_UNAVAILABLE until implemented
 
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc";
-import type { SchemaRegistry } from "../schemaRegistry";
-import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from "../../workspace/uri";
-import { unimplementedToolError } from "./_unimplemented";
+import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
+import type { SchemaRegistry } from "../schemaRegistry.js";
+import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from "../../workspace/uri.js";
+import { unimplementedToolError } from "./_unimplemented.js";
 
 const TOOL_NAME = "vscode.lsp.workspaceSymbols" as const;
 
