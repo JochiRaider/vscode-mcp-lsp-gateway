@@ -1,14 +1,14 @@
-import * as http from "node:http";
-import type * as vscode from "vscode";
-import { createLogger } from "../logging/redact.js";
-import { AuthVerifier } from "./auth.js";
-import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from "./router.js";
+import * as http from 'node:http';
+import type * as vscode from 'vscode';
+import { createLogger } from '../logging/redact.js';
+import { AuthVerifier } from './auth.js';
+import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from './router.js';
 
 export type GatewaySettings = Readonly<{
   enabled: boolean;
-  bindAddress: "127.0.0.1";
+  bindAddress: '127.0.0.1';
   port: number;
-  endpointPath: "/mcp";
+  endpointPath: '/mcp';
 
   // boundary controls
   secretStorageKey: string;
@@ -45,14 +45,17 @@ export class HttpServer {
     const { settings } = this.deps;
 
     // Fail closed: localhost-only.
-    if (settings.bindAddress !== "127.0.0.1") {
-      throw new Error("Refusing to bind to non-loopback address.");
+    if (settings.bindAddress !== '127.0.0.1') {
+      throw new Error('Refusing to bind to non-loopback address.');
     }
 
     const logger = createLogger(this.deps.output, { debugEnabled: settings.debugLogging });
-    const auth = await AuthVerifier.createFromSecretStorage(this.deps.secrets, settings.secretStorageKey);
+    const auth = await AuthVerifier.createFromSecretStorage(
+      this.deps.secrets,
+      settings.secretStorageKey,
+    );
     if (auth.getTokenCount() === 0) {
-      throw new Error("No bearer tokens configured; refusing to start.");
+      throw new Error('No bearer tokens configured; refusing to start.');
     }
 
     const requestListener = createRouter({
@@ -73,15 +76,15 @@ export class HttpServer {
     await new Promise<void>((resolve, reject) => {
       const srv = this.server!;
       const onError = (err: Error) => {
-        srv.off("listening", onListening);
+        srv.off('listening', onListening);
         reject(err);
       };
       const onListening = () => {
-        srv.off("error", onError);
+        srv.off('error', onError);
         resolve();
       };
-      srv.once("error", onError);
-      srv.once("listening", onListening);
+      srv.once('error', onError);
+      srv.once('listening', onListening);
       srv.listen(settings.port, settings.bindAddress);
     });
 
@@ -104,7 +107,7 @@ export class HttpServer {
     });
 
     if (this.deps.settings.debugLogging) {
-      this.deps.output.appendLine("[debug] HTTP server stopped.");
+      this.deps.output.appendLine('[debug] HTTP server stopped.');
     }
   }
 }

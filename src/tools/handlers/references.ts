@@ -5,12 +5,12 @@
 // - URI gating (schema includes `uri`)
 // - Always returns deterministic PROVIDER_UNAVAILABLE until implemented
 
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
-import type { SchemaRegistry } from "../schemaRegistry.js";
-import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from "../../workspace/uri.js";
-import { unimplementedToolError } from "./_unimplemented.js";
+import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
+import type { SchemaRegistry } from '../schemaRegistry.js';
+import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
+import { unimplementedToolError } from './_unimplemented.js';
 
-const TOOL_NAME = "vscode.lsp.references" as const;
+const TOOL_NAME = 'vscode.lsp.references' as const;
 
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
@@ -28,9 +28,10 @@ export async function handleReferences(args: unknown, deps: ReferencesDeps): Pro
 
   const v = validated.value as Readonly<{ uri: string }>;
 
-  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(
-    () => ({ ok: false as const, code: "MCP_LSP_GATEWAY/URI_INVALID" as const }),
-  );
+  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
+    ok: false as const,
+    code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
+  }));
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
@@ -40,7 +41,7 @@ export async function handleReferences(args: unknown, deps: ReferencesDeps): Pro
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
   return {
     code: -32602,
-    message: "Invalid params",
+    message: 'Invalid params',
     data: { code },
   };
 }

@@ -5,12 +5,12 @@
 // - URI gating (schema includes `uri`)
 // - Always returns deterministic PROVIDER_UNAVAILABLE until implemented
 
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
-import type { SchemaRegistry } from "../schemaRegistry.js";
-import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from "../../workspace/uri.js";
-import { unimplementedToolError } from "./_unimplemented.js";
+import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
+import type { SchemaRegistry } from '../schemaRegistry.js';
+import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
+import { unimplementedToolError } from './_unimplemented.js';
 
-const TOOL_NAME = "vscode.lsp.documentSymbols" as const;
+const TOOL_NAME = 'vscode.lsp.documentSymbols' as const;
 
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
@@ -22,15 +22,19 @@ export type DocumentSymbolsDeps = Readonly<{
   allowedRootsRealpaths: readonly string[];
 }>;
 
-export async function handleDocumentSymbols(args: unknown, deps: DocumentSymbolsDeps): Promise<ToolResult> {
+export async function handleDocumentSymbols(
+  args: unknown,
+  deps: DocumentSymbolsDeps,
+): Promise<ToolResult> {
   const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
   if (!validated.ok) return { ok: false, error: validated.error };
 
   const v = validated.value as Readonly<{ uri: string }>;
 
-  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(
-    () => ({ ok: false as const, code: "MCP_LSP_GATEWAY/URI_INVALID" as const }),
-  );
+  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
+    ok: false as const,
+    code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
+  }));
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
@@ -40,7 +44,7 @@ export async function handleDocumentSymbols(args: unknown, deps: DocumentSymbols
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
   return {
     code: -32602,
-    message: "Invalid params",
+    message: 'Invalid params',
     data: { code },
   };
 }

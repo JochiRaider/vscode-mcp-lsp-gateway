@@ -13,23 +13,18 @@
 // - On validation failure: return a deterministic JSON-RPC error object with code -32602
 //   and `error.data.code === "MCP_LSP_GATEWAY/INVALID_PARAMS"`.
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as vscode from "vscode";
-import { Ajv, type ErrorObject, type ValidateFunction } from "ajv";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
+import { Ajv, type ErrorObject, type ValidateFunction } from 'ajv';
 
-import type { JsonRpcErrorObject } from "../mcp/jsonrpc.js";
-import {
-  V1_TOOL_NAMES,
-  type V1ToolName,
-  type JsonSchemaObject,
-  isV1ToolName,
-} from "./catalog.js";
+import type { JsonRpcErrorObject } from '../mcp/jsonrpc.js';
+import { V1_TOOL_NAMES, type V1ToolName, type JsonSchemaObject, isV1ToolName } from './catalog.js';
 
-export const TOOL_SCHEMA_DIR = path.join("schemas", "tools");
+export const TOOL_SCHEMA_DIR = path.join('schemas', 'tools');
 
-export const ERROR_CODE_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
-export const ERROR_CODE_PROVIDER_UNAVAILABLE = "MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE" as const;
+export const ERROR_CODE_INVALID_PARAMS = 'MCP_LSP_GATEWAY/INVALID_PARAMS' as const;
+export const ERROR_CODE_PROVIDER_UNAVAILABLE = 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE' as const;
 
 export type ValidateInputResult =
   | Readonly<{ ok: true; value: unknown }>
@@ -48,7 +43,7 @@ export class SchemaRegistry {
   public static create(context: vscode.ExtensionContext): Promise<SchemaRegistry> {
     // Use both extensionUri and asAbsolutePath (per contract guidance).
     // extensionUri is useful for future fs APIs; asAbsolutePath yields a stable on-disk path.
-    const toolsDirUri = vscode.Uri.joinPath(context.extensionUri, "schemas", "tools");
+    const toolsDirUri = vscode.Uri.joinPath(context.extensionUri, 'schemas', 'tools');
     const toolsDirFsPath = context.asAbsolutePath(TOOL_SCHEMA_DIR);
 
     // Defensive: ensure the schema directory exists.
@@ -81,7 +76,7 @@ export class SchemaRegistry {
         throw new Error(`Missing tool schema file for "${toolName}": ${absPath}`);
       }
 
-      const raw = fs.readFileSync(absPath, "utf8");
+      const raw = fs.readFileSync(absPath, 'utf8');
       const schema = safeParseJson(raw, absPath);
       assertRootSchemaInvariants(toolName, schema);
 
@@ -117,7 +112,7 @@ export class SchemaRegistry {
         ok: false,
         error: {
           code: -32602,
-          message: "Invalid params",
+          message: 'Invalid params',
           data: {
             code: ERROR_CODE_INVALID_PARAMS,
             ...(safeTool ? { tool: safeTool } : {}),
@@ -134,7 +129,7 @@ export class SchemaRegistry {
         ok: false,
         error: {
           code: -32602,
-          message: "Invalid params",
+          message: 'Invalid params',
           data: {
             code: ERROR_CODE_INVALID_PARAMS,
             ...(safeTool ? { tool: safeTool } : {}),
@@ -156,7 +151,7 @@ export class SchemaRegistry {
       ok: false,
       error: {
         code: -32602,
-        message: "Invalid params",
+        message: 'Invalid params',
         data: {
           code: ERROR_CODE_INVALID_PARAMS,
           ...(safeTool ? { tool: safeTool } : {}),
@@ -172,22 +167,24 @@ function safeParseJson(raw: string, absPath: string): JsonSchemaObject {
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw new Error(`Invalid JSON in schema file: ${absPath}. ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Invalid JSON in schema file: ${absPath}. ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(`Schema file does not contain a JSON object: ${absPath}`);
   }
   return parsed as JsonSchemaObject;
 }
 
 function assertRootSchemaInvariants(toolName: V1ToolName, schema: JsonSchemaObject): void {
-  const t = schema["type"];
-  if (t !== "object") {
+  const t = schema['type'];
+  if (t !== 'object') {
     throw new Error(`Tool schema root must have type "object" (${toolName}).`);
   }
 
   // Enforce contract requirement to prevent foot-guns and test ambiguity.
-  const ap = schema["additionalProperties"];
+  const ap = schema['additionalProperties'];
   if (ap !== false) {
     throw new Error(`Tool schema root must set additionalProperties: false (${toolName}).`);
   }
@@ -208,10 +205,10 @@ function formatAjvErrors(errors: ErrorObject[] | null | undefined): readonly Ajv
   if (!errors || errors.length === 0) return [];
 
   const issues: AjvIssue[] = errors.map((e) => ({
-    path: e.instancePath ?? "",
-    keyword: e.keyword ?? "",
-    message: e.message ?? "Schema validation failed",
-    schemaPath: e.schemaPath ?? "",
+    path: e.instancePath ?? '',
+    keyword: e.keyword ?? '',
+    message: e.message ?? 'Schema validation failed',
+    schemaPath: e.schemaPath ?? '',
   }));
 
   // Deterministic ordering.
@@ -229,7 +226,7 @@ function formatAjvErrors(errors: ErrorObject[] | null | undefined): readonly Ajv
 }
 
 function normalizeToolName(v: unknown): string | undefined {
-  if (typeof v !== "string") return undefined;
+  if (typeof v !== 'string') return undefined;
   const s = v.trim();
   if (s.length === 0) return undefined;
   return s.length > 200 ? s.slice(0, 200) : s;

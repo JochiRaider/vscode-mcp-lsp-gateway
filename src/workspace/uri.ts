@@ -9,11 +9,13 @@
 //   - malformed/non-file/unresolvable -> MCP_LSP_GATEWAY/URI_INVALID
 //   - out of root (or no roots)       -> MCP_LSP_GATEWAY/WORKSPACE_DENIED
 
-import * as path from "node:path";
-import * as fsp from "node:fs/promises";
-import * as vscode from "vscode";
+import * as path from 'node:path';
+import * as fsp from 'node:fs/promises';
+import * as vscode from 'vscode';
 
-export type WorkspaceGateErrorCode = "MCP_LSP_GATEWAY/URI_INVALID" | "MCP_LSP_GATEWAY/WORKSPACE_DENIED";
+export type WorkspaceGateErrorCode =
+  | 'MCP_LSP_GATEWAY/URI_INVALID'
+  | 'MCP_LSP_GATEWAY/WORKSPACE_DENIED';
 
 export type CanonicalFileTarget = Readonly<{
   /** Canonical `file:` URI string (deterministic for unchanged filesystem). */
@@ -31,18 +33,22 @@ export type GateResult =
 /**
  * Canonicalize a `file:` URI string to a `CanonicalFileTarget`, without checking allowed roots.
  */
-export async function canonicalizeFileUri(uriString: string): Promise<
-  Readonly<{ ok: true; value: CanonicalFileTarget }> | Readonly<{ ok: false; code: "MCP_LSP_GATEWAY/URI_INVALID" }>
+export async function canonicalizeFileUri(
+  uriString: string,
+): Promise<
+  | Readonly<{ ok: true; value: CanonicalFileTarget }>
+  | Readonly<{ ok: false; code: 'MCP_LSP_GATEWAY/URI_INVALID' }>
 > {
   const parsed = tryParseUri(uriString);
-  if (!parsed) return { ok: false, code: "MCP_LSP_GATEWAY/URI_INVALID" };
-  if (parsed.scheme !== "file") return { ok: false, code: "MCP_LSP_GATEWAY/URI_INVALID" };
+  if (!parsed) return { ok: false, code: 'MCP_LSP_GATEWAY/URI_INVALID' };
+  if (parsed.scheme !== 'file') return { ok: false, code: 'MCP_LSP_GATEWAY/URI_INVALID' };
 
   const fsPath = parsed.fsPath;
-  if (!fsPath || !path.isAbsolute(fsPath)) return { ok: false, code: "MCP_LSP_GATEWAY/URI_INVALID" };
+  if (!fsPath || !path.isAbsolute(fsPath))
+    return { ok: false, code: 'MCP_LSP_GATEWAY/URI_INVALID' };
 
   const realPath = await tryRealpath(fsPath);
-  if (!realPath) return { ok: false, code: "MCP_LSP_GATEWAY/URI_INVALID" };
+  if (!realPath) return { ok: false, code: 'MCP_LSP_GATEWAY/URI_INVALID' };
 
   const canonRealPath = canonicalizeFsPath(realPath);
   const canonUri = canonicalFileUriFromRealPath(canonRealPath);
@@ -58,14 +64,14 @@ export async function canonicalizeAndGateFileUri(
   allowedRootsRealpaths: readonly string[],
 ): Promise<GateResult> {
   if (!allowedRootsRealpaths || allowedRootsRealpaths.length === 0) {
-    return { ok: false, code: "MCP_LSP_GATEWAY/WORKSPACE_DENIED" };
+    return { ok: false, code: 'MCP_LSP_GATEWAY/WORKSPACE_DENIED' };
   }
 
   const canon = await canonicalizeFileUri(uriString);
   if (!canon.ok) return canon;
 
   if (!isRealPathAllowed(canon.value.realPath, allowedRootsRealpaths)) {
-    return { ok: false, code: "MCP_LSP_GATEWAY/WORKSPACE_DENIED" };
+    return { ok: false, code: 'MCP_LSP_GATEWAY/WORKSPACE_DENIED' };
   }
 
   return canon;
@@ -76,7 +82,10 @@ export async function canonicalizeAndGateFileUri(
  *
  * Inputs are expected to already be canonical realpaths, but this function is defensive.
  */
-export function isRealPathAllowed(candidateRealPath: string, allowedRootsRealpaths: readonly string[]): boolean {
+export function isRealPathAllowed(
+  candidateRealPath: string,
+  allowedRootsRealpaths: readonly string[],
+): boolean {
   const cand = canonicalizeFsPath(candidateRealPath);
   for (const rootRaw of allowedRootsRealpaths) {
     const root = canonicalizeFsPath(rootRaw);
@@ -94,7 +103,7 @@ export function canonicalFileUriFromRealPath(realPath: string): string {
 }
 
 function tryParseUri(uriString: string): vscode.Uri | undefined {
-  if (typeof uriString !== "string") return undefined;
+  if (typeof uriString !== 'string') return undefined;
   const s = uriString.trim();
   if (s.length === 0) return undefined;
   try {
@@ -122,7 +131,10 @@ function stripTrailingSeparators(p: string): string {
   if (p === root) return p;
 
   let out = p;
-  while (out.length > root.length && (out.endsWith(path.sep) || out.endsWith("/") || out.endsWith("\\"))) {
+  while (
+    out.length > root.length &&
+    (out.endsWith(path.sep) || out.endsWith('/') || out.endsWith('\\'))
+  ) {
     out = out.slice(0, -1);
   }
   return out.length === 0 ? root : out;
@@ -143,7 +155,7 @@ function isEqualOrDescendant(root: string, candidate: string): boolean {
   // `..` (or `../...`) escapes the root; reject.
   // Also reject traversal segments that start with `..` as a full segment.
   const relNorm = rel.replace(/[\\/]+/g, path.sep);
-  if (relNorm === ".." || relNorm.startsWith(`..${path.sep}`)) return false;
+  if (relNorm === '..' || relNorm.startsWith(`..${path.sep}`)) return false;
 
   return true;
 }
@@ -151,5 +163,5 @@ function isEqualOrDescendant(root: string, candidate: string): boolean {
 function compareKey(p: string): string {
   // Windows is case-insensitive for path comparisons in most environments.
   // Do NOT mutate returned paths; this is only for equality/descendant checks.
-  return process.platform === "win32" ? p.toLowerCase() : p;
+  return process.platform === 'win32' ? p.toLowerCase() : p;
 }

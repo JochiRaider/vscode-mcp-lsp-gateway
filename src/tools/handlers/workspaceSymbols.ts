@@ -6,12 +6,12 @@
 //   (this tool’s v1 schema should NOT, but this keeps the stub generic and future-proof)
 // - Always returns deterministic PROVIDER_UNAVAILABLE until implemented
 
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
-import type { SchemaRegistry } from "../schemaRegistry.js";
-import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from "../../workspace/uri.js";
-import { unimplementedToolError } from "./_unimplemented.js";
+import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
+import type { SchemaRegistry } from '../schemaRegistry.js';
+import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
+import { unimplementedToolError } from './_unimplemented.js';
 
-const TOOL_NAME = "vscode.lsp.workspaceSymbols" as const;
+const TOOL_NAME = 'vscode.lsp.workspaceSymbols' as const;
 
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
@@ -23,14 +23,17 @@ export type WorkspaceSymbolsDeps = Readonly<{
   allowedRootsRealpaths: readonly string[];
 }>;
 
-export async function handleWorkspaceSymbols(args: unknown, deps: WorkspaceSymbolsDeps): Promise<ToolResult> {
+export async function handleWorkspaceSymbols(
+  args: unknown,
+  deps: WorkspaceSymbolsDeps,
+): Promise<ToolResult> {
   const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
   if (!validated.ok) return { ok: false, error: validated.error };
 
   // Apply URI gating only when schema allows a top-level `uri` (Ajv would otherwise reject it).
   const v = validated.value as Record<string, unknown>;
-  const uriRaw = v["uri"];
-  if (typeof uriRaw === "string") {
+  const uriRaw = v['uri'];
+  if (typeof uriRaw === 'string') {
     const gated = await canonicalizeAndGateFileUri(uriRaw, deps.allowedRootsRealpaths);
     if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
   }
@@ -41,7 +44,7 @@ export async function handleWorkspaceSymbols(args: unknown, deps: WorkspaceSymbo
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
   return {
     code: -32602,
-    message: "Invalid params",
+    message: 'Invalid params',
     data: { code },
   };
 }

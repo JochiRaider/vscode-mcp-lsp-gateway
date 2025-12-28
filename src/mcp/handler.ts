@@ -11,15 +11,11 @@
 //   be enforced before this handler is invoked.
 // - All HTTP-layer rejections return empty bodies (fail-closed), even for JSON-RPC requests with ids.
 
-import { createSessionStore, type SessionStore } from "../server/session.js";
-import type { McpPostContext, McpPostHandler, McpPostResult } from "../server/router.js";
-import {
-  parseJsonRpcMessage,
-  type JsonRpcId,
-  type JsonRpcErrorObject,
-} from "./jsonrpc.js";
-import { dispatchToolsList, dispatchToolCall } from "../tools/dispatcher.js";
-import type { SchemaRegistry } from "../tools/schemaRegistry.js";
+import { createSessionStore, type SessionStore } from '../server/session.js';
+import type { McpPostContext, McpPostHandler, McpPostResult } from '../server/router.js';
+import { parseJsonRpcMessage, type JsonRpcId, type JsonRpcErrorObject } from './jsonrpc.js';
+import { dispatchToolsList, dispatchToolCall } from '../tools/dispatcher.js';
+import type { SchemaRegistry } from '../tools/schemaRegistry.js';
 
 export type McpServerInfo = Readonly<{
   name: string;
@@ -27,7 +23,7 @@ export type McpServerInfo = Readonly<{
 }>;
 
 export type CreateMcpPostHandlerOptions = Readonly<{
-  protocolVersion: "2025-11-25";
+  protocolVersion: '2025-11-25';
   serverInfo: McpServerInfo;
   enableSessions: boolean;
   schemaRegistry: SchemaRegistry;
@@ -49,7 +45,7 @@ export type CreateMcpPostHandlerOptions = Readonly<{
 }>;
 
 type InitializeResult = Readonly<{
-  protocolVersion: "2025-11-25";
+  protocolVersion: '2025-11-25';
   capabilities: Readonly<{
     tools: Readonly<{
       listChanged: false;
@@ -58,9 +54,9 @@ type InitializeResult = Readonly<{
   serverInfo: McpServerInfo;
 }>;
 
-const ERR_CURSOR_INVALID = "MCP_LSP_GATEWAY/CURSOR_INVALID" as const;
-const ERR_CAP_EXCEEDED = "MCP_LSP_GATEWAY/CAP_EXCEEDED" as const;
-const ERR_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
+const ERR_CURSOR_INVALID = 'MCP_LSP_GATEWAY/CURSOR_INVALID' as const;
+const ERR_CAP_EXCEEDED = 'MCP_LSP_GATEWAY/CAP_EXCEEDED' as const;
+const ERR_INVALID_PARAMS = 'MCP_LSP_GATEWAY/INVALID_PARAMS' as const;
 
 export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPostHandler {
   // Global init state (used when sessions are disabled).
@@ -86,7 +82,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     }
 
     // JSON-RPC responses sent to us are accepted and ignored.
-    if (parsed.message.kind === "response") {
+    if (parsed.message.kind === 'response') {
       return { status: 202 };
     }
 
@@ -96,7 +92,9 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     // Lifecycle / post-init model:
     // - Pre-init: only "initialize" should succeed.
     // - Post-init: enforce MCP-Protocol-Version (and session id if enabled) on every request/notification.
-    const postInit = opts.enableSessions ? (sessionStore?.size() ?? 0) > 0 : didAnyInitializeSucceed;
+    const postInit = opts.enableSessions
+      ? (sessionStore?.size() ?? 0) > 0
+      : didAnyInitializeSucceed;
 
     // Helper: enforce post-init headers (HTTP errors, empty body).
     const enforcePostInitHeaders = (
@@ -105,7 +103,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       allowMissingProtocolVersionForThisCall: boolean,
     ): { ok: true; sessionId?: string } | { ok: false; status: number } => {
       if (requireProtocolVersion) {
-        const pv = getHeader(headers, "mcp-protocol-version");
+        const pv = getHeader(headers, 'mcp-protocol-version');
         if (!pv) {
           if (!allowMissingProtocolVersionForThisCall) return { ok: false, status: 400 };
         } else if (pv !== opts.protocolVersion) {
@@ -115,7 +113,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
       if (requireSession) {
         if (!sessionStore) return { ok: false, status: 500 };
-        const sid = getHeader(headers, "mcp-session-id");
+        const sid = getHeader(headers, 'mcp-session-id');
         const r = sessionStore.require(sid);
         if (!r.ok) return { ok: false, status: r.status };
         return { ok: true, sessionId: r.sessionId };
@@ -125,8 +123,8 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     };
 
     // --- initialize ---------------------------------------------------------
-    if (method === "initialize") {
-      if (parsed.message.kind !== "request") {
+    if (method === 'initialize') {
+      if (parsed.message.kind !== 'request') {
         // initialize MUST be a request; as a notification we cannot respond with JSON-RPC.
         return { status: 400 };
       }
@@ -138,7 +136,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       if (pv !== opts.protocolVersion) {
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
-          message: "Invalid params",
+          message: 'Invalid params',
           data: {
             expected: opts.protocolVersion,
             got: pv ?? null,
@@ -160,14 +158,14 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       if (opts.enableSessions) {
         // Mint and attach MCP-Session-Id header.
         const sessionId = sessionStore!.create(opts.protocolVersion);
-        return jsonRpcResultResponse(req.id, result, { "MCP-Session-Id": sessionId });
+        return jsonRpcResultResponse(req.id, result, { 'MCP-Session-Id': sessionId });
       }
 
       return jsonRpcResultResponse(req.id, result);
     }
 
     // --- notifications/initialized ----------------------------------------
-    if (method === "notifications/initialized") {
+    if (method === 'notifications/initialized') {
       // Post-init requirement: this MUST happen after initialize.
       // Fail closed at transport layer (HTTP 400) if we have never initialized.
       if (!postInit) return { status: 400 };
@@ -175,7 +173,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       // Enforce post-init headers on this subsequent request.
       const allowMissingPv =
         Boolean(opts.allowMissingProtocolVersionOnInitializedNotification) &&
-        parsed.message.kind === "notification";
+        parsed.message.kind === 'notification';
 
       const hdr = enforcePostInitHeaders(
         /* requireProtocolVersion */ true,
@@ -197,7 +195,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     }
 
     // --- Other notifications ----------------------------------------------
-    if (parsed.message.kind === "notification") {
+    if (parsed.message.kind === 'notification') {
       // Pre-init: only initialize should succeed. Notifications cannot carry JSON-RPC errors.
       if (!postInit) return { status: 400 };
 
@@ -219,7 +217,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     // Lifecycle: require initialization before serving any non-initialize requests.
     // This is a JSON-RPC-level error (not a transport-level error) because the envelope is valid.
     if (!postInit) {
-      return jsonRpcErrorResponse(req.id, { code: -32600, message: "Not initialized" });
+      return jsonRpcErrorResponse(req.id, { code: -32600, message: 'Not initialized' });
     }
 
     // Enforce post-init headers (HTTP-layer errors, empty body).
@@ -232,40 +230,40 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
     // Optional stricter lifecycle: require notifications/initialized before non-health methods.
     // We allow "ping" regardless once initialize succeeded.
-    if (method !== "ping") {
+    if (method !== 'ping') {
       if (opts.enableSessions) {
         const sid = hdr.sessionId!;
         const st = sessionStore!.get(sid);
         if (!st?.initializedNotificationSeen) {
           return jsonRpcErrorResponse(req.id, {
             code: -32600,
-            message: "Not initialized",
-            data: { detail: "notifications/initialized not received" },
+            message: 'Not initialized',
+            data: { detail: 'notifications/initialized not received' },
           });
         }
       } else if (!didReceiveInitializedNotification) {
         return jsonRpcErrorResponse(req.id, {
           code: -32600,
-          message: "Not initialized",
-          data: { detail: "notifications/initialized not received" },
+          message: 'Not initialized',
+          data: { detail: 'notifications/initialized not received' },
         });
       }
     }
 
     // --- ping --------------------------------------------------------------
-    if (method === "ping") {
+    if (method === 'ping') {
       // Keep result deterministic and minimal.
       return jsonRpcResultResponse(req.id, {});
     }
 
     // --- tools/list --------------------------------------------------------
-    if (method === "tools/list") {
+    if (method === 'tools/list') {
       // Params: { cursor?: string | null }
       const cursorParsed = parseOptionalCursor(req.params);
       if (!cursorParsed.ok) {
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
-          message: "Invalid params",
+          message: 'Invalid params',
           data: { code: ERR_INVALID_PARAMS },
         });
       }
@@ -273,7 +271,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         // Fail closed: no pagination for tools/list in v1.
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
-          message: "Invalid params",
+          message: 'Invalid params',
           data: { code: ERR_CURSOR_INVALID },
         });
       }
@@ -283,12 +281,12 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     }
 
     // --- tools/call --------------------------------------------------------
-    if (method === "tools/call") {
+    if (method === 'tools/call') {
       const parsedCall = parseToolsCallParams(req.params);
       if (!parsedCall.ok) {
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
-          message: "Invalid params",
+          message: 'Invalid params',
           data: { code: ERR_INVALID_PARAMS },
         });
       }
@@ -306,13 +304,16 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
       const response = jsonRpcResultResponse(req.id, dispatched.result);
       if (response.bodyText && exceedsMaxResponseBytes(response.bodyText, opts.maxResponseBytes)) {
-        return jsonRpcErrorResponse(req.id, capExceededError("Response exceeded maxResponseBytes."));
+        return jsonRpcErrorResponse(
+          req.id,
+          capExceededError('Response exceeded maxResponseBytes.'),
+        );
       }
       return response;
     }
 
     // Default: method not found.
-    return jsonRpcErrorResponse(req.id, { code: -32601, message: "Method not found" });
+    return jsonRpcErrorResponse(req.id, { code: -32601, message: 'Method not found' });
   };
 }
 
@@ -321,7 +322,7 @@ function jsonRpcResultResponse(
   result: unknown,
   headers?: Readonly<Record<string, string>>,
 ): McpPostResult {
-  const bodyText = JSON.stringify({ jsonrpc: "2.0", id, result });
+  const bodyText = JSON.stringify({ jsonrpc: '2.0', id, result });
   const response: McpPostResult = {
     status: 200,
     ...(headers ? { headers } : {}),
@@ -331,7 +332,7 @@ function jsonRpcResultResponse(
 }
 
 function jsonRpcErrorResponse(id: JsonRpcId, error: JsonRpcErrorObject): McpPostResult {
-  const bodyText = JSON.stringify({ jsonrpc: "2.0", id, error });
+  const bodyText = JSON.stringify({ jsonrpc: '2.0', id, error });
   return {
     status: 200,
     bodyText,
@@ -344,34 +345,32 @@ function capExceededError(message: string): JsonRpcErrorObject {
   if (trimmed.length > 0) data.message = trimmed;
   return {
     code: -32603,
-    message: "Internal error",
+    message: 'Internal error',
     data,
   };
 }
 
 function exceedsMaxResponseBytes(bodyText: string, maxResponseBytes: number): boolean {
   if (!Number.isFinite(maxResponseBytes) || maxResponseBytes <= 0) return false;
-  return Buffer.byteLength(bodyText, "utf8") > Math.floor(maxResponseBytes);
+  return Buffer.byteLength(bodyText, 'utf8') > Math.floor(maxResponseBytes);
 }
 
 function getProtocolVersionParam(params: unknown): string | undefined {
-  if (!params || typeof params !== "object") return undefined;
+  if (!params || typeof params !== 'object') return undefined;
   const rec = params as Record<string, unknown>;
   const pv = rec.protocolVersion;
-  return typeof pv === "string" ? pv : undefined;
+  return typeof pv === 'string' ? pv : undefined;
 }
 
-type OptionalCursorParse =
-  | Readonly<{ ok: true; cursor: string | null }>
-  | Readonly<{ ok: false }>;
+type OptionalCursorParse = Readonly<{ ok: true; cursor: string | null }> | Readonly<{ ok: false }>;
 
 function parseOptionalCursor(params: unknown): OptionalCursorParse {
   if (params === undefined || params === null) return { ok: true, cursor: null };
-  if (typeof params !== "object" || Array.isArray(params)) return { ok: false };
+  if (typeof params !== 'object' || Array.isArray(params)) return { ok: false };
   const rec = params as Record<string, unknown>;
   const c = rec.cursor;
   if (c === undefined || c === null) return { ok: true, cursor: null };
-  if (typeof c !== "string") return { ok: false };
+  if (typeof c !== 'string') return { ok: false };
   return { ok: true, cursor: c };
 }
 
@@ -380,19 +379,22 @@ type ToolsCallParams =
   | Readonly<{ ok: false }>;
 
 function parseToolsCallParams(params: unknown): ToolsCallParams {
-  if (!params || typeof params !== "object" || Array.isArray(params)) return { ok: false };
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return { ok: false };
   const rec = params as Record<string, unknown>;
   const name = rec.name;
-  if (typeof name !== "string" || name.length === 0) return { ok: false };
+  if (typeof name !== 'string' || name.length === 0) return { ok: false };
   const args = rec.arguments;
   // MCP allows arguments to be omitted; treat as empty object.
   if (args === undefined) return { ok: true, name, arguments: {} };
   // Fail closed: arguments must be an object (schemas expect object roots).
-  if (args === null || typeof args !== "object" || Array.isArray(args)) return { ok: false };
+  if (args === null || typeof args !== 'object' || Array.isArray(args)) return { ok: false };
   return { ok: true, name, arguments: args };
 }
 
-function getHeader(headers: Readonly<Record<string, string>>, lowerKey: string): string | undefined {
+function getHeader(
+  headers: Readonly<Record<string, string>>,
+  lowerKey: string,
+): string | undefined {
   // Prefer exact lower-case (router commonly normalizes to lower-case).
   const direct = headers[lowerKey];
   if (direct) return direct;

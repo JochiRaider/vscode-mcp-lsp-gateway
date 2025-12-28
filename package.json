@@ -14,10 +14,25 @@
   "bugs": {
     "url": "https://github.com/JochiRaider/vscode-mcp-lsp-gateway/issues"
   },
-  "categories": ["Other"],
-  "keywords": ["mcp", "codex", "lsp", "vscode", "streamable-http", "json-rpc"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "mcp",
+    "codex",
+    "lsp",
+    "vscode",
+    "streamable-http",
+    "json-rpc"
+  ],
   "main": "./dist/extension.js",
-  "files": ["dist/**", "docs/**", "schemas/**", "README.md", "LICENSE"],
+  "files": [
+    "dist/**",
+    "docs/**",
+    "schemas/**",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "vscode": "^1.107.0"
   },
@@ -27,7 +42,9 @@
     "onCommand:mcpLspGateway.clearBearerTokens",
     "onCommand:mcpLspGateway.copyEndpointUrl"
   ],
-  "extensionKind": ["workspace"],
+  "extensionKind": [
+    "workspace"
+  ],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
@@ -61,7 +78,9 @@
         "mcpLspGateway.bindAddress": {
           "type": "string",
           "default": "127.0.0.1",
-          "enum": ["127.0.0.1"],
+          "enum": [
+            "127.0.0.1"
+          ],
           "scope": "machine",
           "description": "Bind address for the local MCP HTTP server. v1 is localhost-only."
         },
@@ -76,7 +95,9 @@
         "mcpLspGateway.endpointPath": {
           "type": "string",
           "default": "/mcp",
-          "enum": ["/mcp"],
+          "enum": [
+            "/mcp"
+          ],
           "scope": "machine",
           "description": "Single MCP endpoint path for Streamable HTTP."
         },
@@ -88,14 +109,18 @@
         },
         "mcpLspGateway.allowedOrigins": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "scope": "machine",
           "description": "If the Origin header is present, it must exactly match one of these values; otherwise requests are rejected."
         },
         "mcpLspGateway.additionalAllowedRoots": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "scope": "machine",
           "description": "Additional filesystem roots (absolute paths) allowed for URI gating, in addition to workspace folders."
@@ -141,24 +166,19 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-
     "compile": "npm run check-types && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch -p tsconfig.json",
-
     "package": "npm run check-types && node esbuild.js --production",
     "vscode:prepublish": "npm run package",
-
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-
     "compile-tests": "tsc -p test/tsconfig.json --outDir out/test",
     "pretest": "npm run compile && npm run lint && npm run format:check && npm run compile-tests",
     "test": "vscode-test",
-
     "package:vsix": "npx @vscode/vsce package --no-dependencies"
   },
   "dependencies": {
@@ -171,15 +191,12 @@
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.107.0",
-
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.4.0",
     "@vscode/vsce": "^3.2.0",
-
     "chai": "^4.4.1",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^10.1.8",
-
     "esbuild": "^0.24.2",
     "mocha": "^10.4.0",
     "npm-run-all": "^4.1.5",

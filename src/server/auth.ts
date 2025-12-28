@@ -1,5 +1,5 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-import type * as vscode from "vscode";
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type * as vscode from 'vscode';
 
 export const MAX_BEARER_TOKENS = 32;
 
@@ -36,7 +36,7 @@ export class AuthVerifier {
     if (!Array.isArray(parsed)) return new AuthVerifier([]);
 
     const tokens = parsed
-      .filter((v): v is string => typeof v === "string")
+      .filter((v): v is string => typeof v === 'string')
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
@@ -79,5 +79,5 @@ export function extractBearerToken(authorizationHeader: string | undefined): str
 }
 
 function sha256(s: string): Buffer {
-  return createHash("sha256").update(s, "utf8").digest();
+  return createHash('sha256').update(s, 'utf8').digest();
 }

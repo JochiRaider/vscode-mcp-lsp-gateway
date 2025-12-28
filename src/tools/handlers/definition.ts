@@ -9,9 +9,13 @@
 // - Stable sort + deterministic dedupe.
 // - Enforces MAX_ITEMS_NONPAGED via deterministic truncation.
 
-import * as vscode from "vscode";
-import type { JsonRpcErrorObject } from "../../mcp/jsonrpc.js";
-import { canonicalizeAndGateFileUri, canonicalizeFileUri, isRealPathAllowed } from "../../workspace/uri.js";
+import * as vscode from 'vscode';
+import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
+import {
+  canonicalizeAndGateFileUri,
+  canonicalizeFileUri,
+  isRealPathAllowed,
+} from '../../workspace/uri.js';
 
 const MAX_ITEMS_NONPAGED = 200;
 
@@ -32,26 +36,38 @@ export type DefinitionOutput = Readonly<{
   summary?: string;
 }>;
 
-export type ToolResult = Readonly<{ ok: true; result: DefinitionOutput }> | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
+export type ToolResult =
+  | Readonly<{ ok: true; result: DefinitionOutput }>
+  | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
 
 export type DefinitionDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
 }>;
 
-export async function handleDefinition(input: DefinitionInput, deps: DefinitionDeps): Promise<ToolResult> {
+export async function handleDefinition(
+  input: DefinitionInput,
+  deps: DefinitionDeps,
+): Promise<ToolResult> {
   // Defensive normalization (schema should already enforce, but fail closed).
   const line = normalizeNonNegativeInt(input?.position?.line);
   const character = normalizeNonNegativeInt(input?.position?.character);
   if (line === undefined || character === undefined) {
     return {
       ok: false,
-      error: toolError(E_INVALID_PARAMS, "MCP_LSP_GATEWAY/INVALID_PARAMS", "position must be non-negative integers"),
+      error: toolError(
+        E_INVALID_PARAMS,
+        'MCP_LSP_GATEWAY/INVALID_PARAMS',
+        'position must be non-negative integers',
+      ),
     };
   }
 
   // Gate + canonicalize input URI (fail closed).
-  const gated = await canonicalizeAndGateFileUri(String(input?.uri ?? ""), deps.allowedRootsRealpaths);
+  const gated = await canonicalizeAndGateFileUri(
+    String(input?.uri ?? ''),
+    deps.allowedRootsRealpaths,
+  );
   if (!gated.ok) {
     return {
       ok: false,
@@ -64,20 +80,20 @@ export async function handleDefinition(input: DefinitionInput, deps: DefinitionD
   // Open document (reuse if already open).
   const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
   if (!doc) {
-    return { ok: false, error: toolError(E_INTERNAL, "MCP_LSP_GATEWAY/NOT_FOUND") };
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
   }
 
   // Execute provider command.
   let raw: unknown;
   try {
     raw = await vscode.commands.executeCommand(
-      "vscode.executeDefinitionProvider",
+      'vscode.executeDefinitionProvider',
       doc.uri,
       new vscode.Position(line, character),
     );
   } catch {
     // Avoid leaking provider / filesystem details.
-    return { ok: false, error: toolError(E_INTERNAL, "MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE") };
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
   }
 
   const normalized = await normalizeDefinitionResult(raw, deps.allowedRootsRealpaths);
@@ -87,12 +103,13 @@ export async function handleDefinition(input: DefinitionInput, deps: DefinitionD
   const deduped = dedupeSortedLocations(normalized);
 
   // Enforce MAX_ITEMS_NONPAGED via deterministic truncation (keep first N after canonical sort).
-  const truncated = deduped.length > MAX_ITEMS_NONPAGED ? deduped.slice(0, MAX_ITEMS_NONPAGED) : deduped;
+  const truncated =
+    deduped.length > MAX_ITEMS_NONPAGED ? deduped.slice(0, MAX_ITEMS_NONPAGED) : deduped;
 
   const summary =
     truncated.length === 1
-      ? "Found 1 definition."
-      : `Found ${truncated.length} definitions.${deduped.length > MAX_ITEMS_NONPAGED ? " (Capped.)" : ""}`;
+      ? 'Found 1 definition.'
+      : `Found ${truncated.length} definitions.${deduped.length > MAX_ITEMS_NONPAGED ? ' (Capped.)' : ''}`;
 
   return { ok: true, result: { locations: truncated, summary } };
 }
@@ -123,7 +140,7 @@ async function normalizeOneLocationLike(
   item: unknown,
   allowedRootsRealpaths: readonly string[],
 ): Promise<ContractLocation | undefined> {
-  if (!item || typeof item !== "object") return undefined;
+  if (!item || typeof item !== 'object') return undefined;
 
   // LocationLink
   if (isLocationLink(item)) {
@@ -171,13 +188,13 @@ function normalizeToArray(raw: unknown): unknown[] {
 }
 
 function isLocation(v: unknown): v is vscode.Location {
-  if (!v || typeof v !== "object") return false;
+  if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.uri instanceof vscode.Uri && o.range instanceof vscode.Range;
 }
 
 function isLocationLink(v: unknown): v is vscode.LocationLink {
-  if (!v || typeof v !== "object") return false;
+  if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.targetUri instanceof vscode.Uri && o.targetRange instanceof vscode.Range;
 }
@@ -219,7 +236,7 @@ function locationKey(l: ContractLocation): string {
 }
 
 function normalizeNonNegativeInt(v: unknown): number | undefined {
-  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
   if (!Number.isInteger(v)) return undefined;
   if (v < 0) return undefined;
   return v;
@@ -232,12 +249,12 @@ function toolError(
   details?: Record<string, unknown>,
 ): JsonRpcErrorObject {
   const data: Record<string, unknown> = { code };
-  if (typeof message === "string" && message.trim().length > 0) data.message = message.trim();
+  if (typeof message === 'string' && message.trim().length > 0) data.message = message.trim();
   if (details && Object.keys(details).length > 0) data.details = details;
 
   return {
     code: jsonRpcCode,
-    message: jsonRpcCode === E_INVALID_PARAMS ? "Invalid params" : "Internal error",
+    message: jsonRpcCode === E_INVALID_PARAMS ? 'Invalid params' : 'Internal error',
     data,
   };
 }

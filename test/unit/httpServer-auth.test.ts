@@ -1,6 +1,6 @@
-import { expect } from "chai";
-import type * as vscode from "vscode";
-import { HttpServer, type GatewaySettings } from "../../src/server/httpServer";
+import { expect } from 'chai';
+import type * as vscode from 'vscode';
+import { HttpServer, type GatewaySettings } from '../../src/server/httpServer';
 
 class FakeOutputChannel {
   public appendLine(): void {
@@ -8,14 +8,14 @@ class FakeOutputChannel {
   }
 }
 
-describe("http server auth", () => {
-  it("refuses to start when no bearer tokens are configured", async () => {
+describe('http server auth', () => {
+  it('refuses to start when no bearer tokens are configured', async () => {
     const settings: GatewaySettings = {
       enabled: true,
-      bindAddress: "127.0.0.1",
+      bindAddress: '127.0.0.1',
       port: 3939,
-      endpointPath: "/mcp",
-      secretStorageKey: "mcpLspGateway.authTokens",
+      endpointPath: '/mcp',
+      secretStorageKey: 'mcpLspGateway.authTokens',
       allowedOrigins: [],
       additionalAllowedRoots: [],
       enableSessions: true,
@@ -43,6 +43,6 @@ describe("http server auth", () => {
     }
 
     expect(err).to.be.instanceOf(Error);
-    expect(String(err)).to.include("No bearer tokens configured");
+    expect(String(err)).to.include('No bearer tokens configured');
   });
 });

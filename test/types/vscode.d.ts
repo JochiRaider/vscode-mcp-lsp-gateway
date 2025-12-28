@@ -1,4 +1,4 @@
-declare module "vscode" {
+declare module 'vscode' {
   export type Thenable<T> = PromiseLike<T>;
 
   export interface OutputChannel {

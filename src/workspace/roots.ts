@@ -8,9 +8,9 @@
 // - Results are deterministic: stable sorted + deduped.
 // - Fail-closed: invalid/non-existent/non-absolute additional roots are ignored.
 
-import * as path from "node:path";
-import * as vscode from "vscode";
-import * as fsp from "node:fs/promises";
+import * as path from 'node:path';
+import * as vscode from 'vscode';
+import * as fsp from 'node:fs/promises';
 
 export type AllowedRoots = Readonly<{
   /** Canonical realpaths (symlinks resolved), stable-sorted, deduped. */
@@ -21,20 +21,21 @@ export type AllowedRoots = Readonly<{
 
 export async function computeAllowedRoots(
   additionalAllowedRoots: readonly string[],
-  workspaceFolders: readonly vscode.WorkspaceFolder[] | undefined = vscode.workspace.workspaceFolders,
+  workspaceFolders: readonly vscode.WorkspaceFolder[] | undefined = vscode.workspace
+    .workspaceFolders,
 ): Promise<AllowedRoots> {
   const candidates: string[] = [];
 
   // Workspace folders (file: only).
   for (const wf of workspaceFolders ?? []) {
-    if (wf.uri.scheme !== "file") continue;
+    if (wf.uri.scheme !== 'file') continue;
     const fsPath = wf.uri.fsPath;
-    if (typeof fsPath === "string" && fsPath.trim().length > 0) candidates.push(fsPath);
+    if (typeof fsPath === 'string' && fsPath.trim().length > 0) candidates.push(fsPath);
   }
 
   // Additional allowed roots (absolute filesystem paths only).
   for (const raw of additionalAllowedRoots ?? []) {
-    if (typeof raw === "string" && raw.trim().length > 0) candidates.push(raw);
+    if (typeof raw === 'string' && raw.trim().length > 0) candidates.push(raw);
   }
 
   const dedup = new Map<string, true>();
@@ -95,7 +96,10 @@ function stripTrailingSeparators(p: string): string {
   if (p === root) return p;
 
   let out = p;
-  while (out.length > root.length && (out.endsWith(path.sep) || out.endsWith("/") || out.endsWith("\\"))) {
+  while (
+    out.length > root.length &&
+    (out.endsWith(path.sep) || out.endsWith('/') || out.endsWith('\\'))
+  ) {
     out = out.slice(0, -1);
   }
   return out.length === 0 ? root : out;

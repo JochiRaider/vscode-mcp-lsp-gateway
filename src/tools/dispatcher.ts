@@ -14,29 +14,34 @@
 // - If you later refactor handlers to assume validated/gated input, move Ajv + gating here and
 //   simplify handlers accordingly.
 
-import type { JsonRpcErrorObject } from "../mcp/jsonrpc.js";
-import { buildV1ToolCatalog, isV1ToolName, type ToolCatalogEntry, type V1ToolName } from "./catalog.js";
-import type { SchemaRegistry } from "./schemaRegistry.js";
+import type { JsonRpcErrorObject } from '../mcp/jsonrpc.js';
+import {
+  buildV1ToolCatalog,
+  isV1ToolName,
+  type ToolCatalogEntry,
+  type V1ToolName,
+} from './catalog.js';
+import type { SchemaRegistry } from './schemaRegistry.js';
 
 // Handlers
-import { handleDefinition } from "./handlers/definition.js";
-import type { DefinitionInput } from "./handlers/definition.js";
-import { handleReferences } from "./handlers/references.js";
-import { handleHover } from "./handlers/hover.js";
-import { handleDocumentSymbols } from "./handlers/documentSymbols.js";
-import { handleWorkspaceSymbols } from "./handlers/workspaceSymbols.js";
-import { handleDiagnosticsDocument } from "./handlers/diagnosticsDocument.js";
-import { handleDiagnosticsWorkspace } from "./handlers/diagnosticsWorkspace.js";
+import { handleDefinition } from './handlers/definition.js';
+import type { DefinitionInput } from './handlers/definition.js';
+import { handleReferences } from './handlers/references.js';
+import { handleHover } from './handlers/hover.js';
+import { handleDocumentSymbols } from './handlers/documentSymbols.js';
+import { handleWorkspaceSymbols } from './handlers/workspaceSymbols.js';
+import { handleDiagnosticsDocument } from './handlers/diagnosticsDocument.js';
+import { handleDiagnosticsWorkspace } from './handlers/diagnosticsWorkspace.js';
 
-const ERROR_CODE_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
-const ERROR_CODE_CAP_EXCEEDED = "MCP_LSP_GATEWAY/CAP_EXCEEDED" as const;
+const ERROR_CODE_INVALID_PARAMS = 'MCP_LSP_GATEWAY/INVALID_PARAMS' as const;
+const ERROR_CODE_CAP_EXCEEDED = 'MCP_LSP_GATEWAY/CAP_EXCEEDED' as const;
 const MAX_PAGE_SIZE = 200;
 const MAX_CONTENT_SUMMARY_CHARS = 200;
 
 export type ToolsListResult = Readonly<{ tools: readonly ToolCatalogEntry[] }>;
 
 export type ToolCallTextContent = Readonly<{
-  type: "text";
+  type: 'text';
   text: string;
 }>;
 
@@ -69,47 +74,49 @@ type HandlerResult =
 type RoutedHandler = (args: unknown, deps: ToolsDispatcherDeps) => Promise<HandlerResult>;
 
 const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
-  "vscode.lsp.definition": async (args, deps) => {
+  'vscode.lsp.definition': async (args, deps) => {
     // Definition handler expects a typed input; it also does defensive validation internally.
-    return await handleDefinition(args as DefinitionInput, { allowedRootsRealpaths: deps.allowedRootsRealpaths });
+    return await handleDefinition(args as DefinitionInput, {
+      allowedRootsRealpaths: deps.allowedRootsRealpaths,
+    });
   },
 
-  "vscode.lsp.references": async (args, deps) => {
+  'vscode.lsp.references': async (args, deps) => {
     return await handleReferences(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
-  "vscode.lsp.hover": async (args, deps) => {
+  'vscode.lsp.hover': async (args, deps) => {
     return await handleHover(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
-  "vscode.lsp.documentSymbols": async (args, deps) => {
+  'vscode.lsp.documentSymbols': async (args, deps) => {
     return await handleDocumentSymbols(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
-  "vscode.lsp.workspaceSymbols": async (args, deps) => {
+  'vscode.lsp.workspaceSymbols': async (args, deps) => {
     return await handleWorkspaceSymbols(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
-  "vscode.lsp.diagnostics.document": async (args, deps) => {
+  'vscode.lsp.diagnostics.document': async (args, deps) => {
     return await handleDiagnosticsDocument(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
-  "vscode.lsp.diagnostics.workspace": async (args, deps) => {
+  'vscode.lsp.diagnostics.workspace': async (args, deps) => {
     return await handleDiagnosticsWorkspace(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
@@ -122,7 +129,11 @@ export function dispatchToolsList(schemaRegistry: SchemaRegistry): ToolsListResu
   return { tools };
 }
 
-export async function dispatchToolCall(toolName: string, args: unknown, deps: ToolsDispatcherDeps): Promise<DispatchResult> {
+export async function dispatchToolCall(
+  toolName: string,
+  args: unknown,
+  deps: ToolsDispatcherDeps,
+): Promise<DispatchResult> {
   // Unknown tool name: deterministic INVALID_PARAMS (not provider unavailable).
   if (!isV1ToolName(toolName)) {
     return { ok: false, error: invalidParamsUnknownTool(toolName) };
@@ -142,7 +153,7 @@ export async function dispatchToolCall(toolName: string, args: unknown, deps: To
   const normalizedArgs = normalizeValidatedArgs(validated.value, deps.maxItemsPerPage);
   const raced = await withTimeout(handler(normalizedArgs, deps), deps.requestTimeoutMs);
   if (raced.timedOut) {
-    return { ok: false, error: capExceededError("Request timed out.") };
+    return { ok: false, error: capExceededError('Request timed out.') };
   }
 
   const r = raced.value;
@@ -157,22 +168,24 @@ export async function dispatchToolCall(toolName: string, args: unknown, deps: To
 
 function toToolCallResult(structuredContent: unknown): ToolCallResult {
   const summary = extractSummary(structuredContent);
-  const text = summary ?? "OK";
+  const text = summary ?? 'OK';
 
   return {
     isError: false,
     structuredContent,
-    content: [{ type: "text", text }],
+    content: [{ type: 'text', text }],
   } as const;
 }
 
 function extractSummary(v: unknown): string | undefined {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
   const summary = (v as Record<string, unknown>).summary;
-  if (typeof summary !== "string") return undefined;
-  const normalized = summary.replace(/\s+/g, " ").trim();
+  if (typeof summary !== 'string') return undefined;
+  const normalized = summary.replace(/\s+/g, ' ').trim();
   if (normalized.length === 0) return undefined;
-  return normalized.length > MAX_CONTENT_SUMMARY_CHARS ? normalized.slice(0, MAX_CONTENT_SUMMARY_CHARS) : normalized;
+  return normalized.length > MAX_CONTENT_SUMMARY_CHARS
+    ? normalized.slice(0, MAX_CONTENT_SUMMARY_CHARS)
+    : normalized;
 }
 
 type TimeoutResult<T> = Readonly<{ timedOut: true }> | Readonly<{ timedOut: false; value: T }>;
@@ -197,12 +210,12 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 }
 
 function normalizeValidatedArgs(value: unknown, maxItemsPerPage: number): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const rec = value as Record<string, unknown>;
-  if (!Object.prototype.hasOwnProperty.call(rec, "pageSize")) return value;
+  if (!Object.prototype.hasOwnProperty.call(rec, 'pageSize')) return value;
 
   const pageSize = rec.pageSize;
-  if (typeof pageSize !== "number" || !Number.isInteger(pageSize)) return value;
+  if (typeof pageSize !== 'number' || !Number.isInteger(pageSize)) return value;
 
   const maxPageSize = clampMaxItemsPerPage(maxItemsPerPage);
   const clamped = clampInt(pageSize, 1, maxPageSize);
@@ -230,7 +243,7 @@ function capExceededError(message: string): JsonRpcErrorObject {
   if (trimmed.length > 0) data.message = trimmed;
   return {
     code: -32603,
-    message: "Internal error",
+    message: 'Internal error',
     data,
   };
 }
@@ -239,7 +252,7 @@ function invalidParamsUnknownTool(tool: string): JsonRpcErrorObject {
   const safeTool = normalizeToolName(tool);
   return {
     code: -32602,
-    message: "Invalid params",
+    message: 'Invalid params',
     data: {
       code: ERROR_CODE_INVALID_PARAMS,
       ...(safeTool ? { tool: safeTool } : undefined),
@@ -248,7 +261,7 @@ function invalidParamsUnknownTool(tool: string): JsonRpcErrorObject {
 }
 
 function normalizeToolName(v: unknown): string | undefined {
-  if (typeof v !== "string") return undefined;
+  if (typeof v !== 'string') return undefined;
   const s = v.trim();
   if (s.length === 0) return undefined;
   return s.length > 200 ? s.slice(0, 200) : s;

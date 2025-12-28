@@ -1,7 +1,7 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes } from 'node:crypto';
 
 export type SessionState = {
-  protocolVersion: "2025-11-25";
+  protocolVersion: '2025-11-25';
   createdAtMs: number;
   initializedNotificationSeen: boolean;
 };
@@ -12,7 +12,7 @@ export type SessionRequireResult =
 
 export type SessionStore = Readonly<{
   /** Mint a new session id and store its initial state. Returns the new id. */
-  create: (protocolVersion: "2025-11-25") => string;
+  create: (protocolVersion: '2025-11-25') => string;
   /** Get a session state; undefined if unknown/evicted. */
   get: (sessionId: string) => SessionState | undefined;
   /**
@@ -39,7 +39,7 @@ export type CreateSessionStoreOptions = Readonly<{
 
 export function mint(): string {
   // 16 bytes is sufficient; base64url is header-safe ASCII.
-  return randomBytes(16).toString("base64url");
+  return randomBytes(16).toString('base64url');
 }
 
 export function createSessionStore(opts: CreateSessionStoreOptions = {}): SessionStore {
@@ -52,7 +52,7 @@ export function createSessionStore(opts: CreateSessionStoreOptions = {}): Sessio
   const evictIfNeeded = () => {
     while (sessions.size > maxSessions) {
       const oldest = sessions.keys().next().value;
-      if (typeof oldest !== "string") break;
+      if (typeof oldest !== 'string') break;
       sessions.delete(oldest);
     }
   };
