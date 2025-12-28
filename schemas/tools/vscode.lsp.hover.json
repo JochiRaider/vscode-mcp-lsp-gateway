@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.hover.json",
+  "title": "vscode.lsp.hover — input schema",
+  "description": "Return hover information at a given position in a file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["uri", "position"],
+  "properties": {
+    "uri": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^file:",
+      "description": "Canonical file: URI for the document."
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based line index."
+        },
+        "character": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based character index."
+        }
+      }
+    }
+  }
+}

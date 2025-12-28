@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.references.json",
+  "title": "vscode.lsp.references — input schema",
+  "description": "Find reference locations for the symbol at a given position in a file (paged).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["uri", "position"],
+  "properties": {
+    "uri": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^file:",
+      "description": "Canonical file: URI for the document."
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based line index."
+        },
+        "character": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based character index."
+        }
+      }
+    },
+    "includeDeclaration": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to include the symbol's declaration among the results."
+    },
+    "cursor": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Opaque cursor for deterministic paging; null for first page."
+    },
+    "pageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 100,
+      "description": "Maximum number of items to return for this page."
+    }
+  }
+}

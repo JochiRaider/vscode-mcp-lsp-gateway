@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.diagnostics.workspace.json",
+  "title": "vscode.lsp.diagnostics.workspace — input schema",
+  "description": "Return diagnostics across the workspace (paged by file).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "cursor": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Opaque cursor for deterministic paging; null for first page."
+    },
+    "pageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 100,
+      "description": "Maximum number of files to include in this page."
+    }
+  }
+}

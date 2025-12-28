@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.documentSymbols.json",
+  "title": "vscode.lsp.documentSymbols — input schema",
+  "description": "Return flattened document symbols for a file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["uri"],
+  "properties": {
+    "uri": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^file:",
+      "description": "Canonical file: URI for the document."
+    }
+  }
+}
