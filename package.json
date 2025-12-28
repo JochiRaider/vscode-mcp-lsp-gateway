@@ -1,0 +1,189 @@
+{
+  "name": "mcp-lsp-gateway",
+  "displayName": "LSP Gateway (MCP)",
+  "description": "Local-only, read-only MCP server (Protocol 2025-11-25) exposing VS Code language features to GPT-5.2-Codex over Streamable HTTP.",
+  "version": "0.1.0",
+  "publisher": "your-publisher",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JochiRaider/vscode-mcp-lsp-gateway.git"
+  },
+  "homepage": "https://github.com/JochiRaider/vscode-mcp-lsp-gateway",
+  "bugs": {
+    "url": "https://github.com/JochiRaider/vscode-mcp-lsp-gateway/issues"
+  },
+  "categories": ["Other"],
+  "keywords": ["mcp", "codex", "lsp", "vscode", "streamable-http", "json-rpc"],
+  "main": "./dist/extension.js",
+  "files": ["dist/**", "docs/**", "schemas/**", "README.md", "LICENSE"],
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:mcpLspGateway.setBearerTokens",
+    "onCommand:mcpLspGateway.clearBearerTokens",
+    "onCommand:mcpLspGateway.copyEndpointUrl"
+  ],
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "This extension exposes workspace content over a local HTTP server and is disabled in Restricted Mode."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcpLspGateway.setBearerTokens",
+        "title": "MCP LSP Gateway: Set Bearer Token(s)"
+      },
+      {
+        "command": "mcpLspGateway.clearBearerTokens",
+        "title": "MCP LSP Gateway: Clear Bearer Token(s)"
+      },
+      {
+        "command": "mcpLspGateway.copyEndpointUrl",
+        "title": "MCP LSP Gateway: Copy MCP Endpoint URL"
+      }
+    ],
+    "configuration": {
+      "title": "MCP LSP Gateway",
+      "properties": {
+        "mcpLspGateway.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "description": "Enable the local MCP HTTP server. Disabled by default to reduce accidental exposure; when enabled the server is localhost-only and read-only."
+        },
+        "mcpLspGateway.bindAddress": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "enum": ["127.0.0.1"],
+          "scope": "machine",
+          "description": "Bind address for the local MCP HTTP server. v1 is localhost-only."
+        },
+        "mcpLspGateway.port": {
+          "type": "integer",
+          "default": 3939,
+          "minimum": 1024,
+          "maximum": 65535,
+          "scope": "machine",
+          "description": "TCP port for the local MCP HTTP server."
+        },
+        "mcpLspGateway.endpointPath": {
+          "type": "string",
+          "default": "/mcp",
+          "enum": ["/mcp"],
+          "scope": "machine",
+          "description": "Single MCP endpoint path for Streamable HTTP."
+        },
+        "mcpLspGateway.secretStorageKey": {
+          "type": "string",
+          "default": "mcpLspGateway.authTokens",
+          "scope": "machine",
+          "description": "SecretStorage key used to store bearer token(s). Use the provided commands to set/clear tokens; tokens are never stored in settings."
+        },
+        "mcpLspGateway.allowedOrigins": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "scope": "machine",
+          "description": "If the Origin header is present, it must exactly match one of these values; otherwise requests are rejected."
+        },
+        "mcpLspGateway.additionalAllowedRoots": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "scope": "machine",
+          "description": "Additional filesystem roots (absolute paths) allowed for URI gating, in addition to workspace folders."
+        },
+        "mcpLspGateway.enableSessions": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "description": "If true, mint MCP-Session-Id on initialize response and require it for subsequent requests. Sessions are not authentication."
+        },
+        "mcpLspGateway.maxItemsPerPage": {
+          "type": "integer",
+          "default": 200,
+          "minimum": 1,
+          "maximum": 200,
+          "scope": "machine",
+          "description": "Server-side hard cap for paged results (references, workspaceSymbols, workspace diagnostics)."
+        },
+        "mcpLspGateway.maxResponseBytes": {
+          "type": "integer",
+          "default": 524288,
+          "minimum": 16384,
+          "maximum": 524288,
+          "scope": "machine",
+          "description": "Hard cap on response payload size in bytes."
+        },
+        "mcpLspGateway.requestTimeoutMs": {
+          "type": "integer",
+          "default": 2000,
+          "minimum": 250,
+          "maximum": 2000,
+          "scope": "machine",
+          "description": "Hard cap on per-request processing time."
+        },
+        "mcpLspGateway.debugLogging": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "description": "Opt-in debug logging. Must redact secrets and never log raw request bodies."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json",
+
+    "compile": "npm run check-types && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch -p tsconfig.json",
+
+    "package": "npm run check-types && node esbuild.js --production",
+    "vscode:prepublish": "npm run package",
+
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+
+    "compile-tests": "tsc -p test/tsconfig.json --outDir out/test",
+    "pretest": "npm run compile && npm run lint && npm run format:check && npm run compile-tests",
+    "test": "vscode-test",
+
+    "package:vsix": "npx @vscode/vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "fast-stable-stringify": "^1.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/chai": "^4.3.14",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.107.0",
+
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^3.2.0",
+
+    "chai": "^4.4.1",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^10.1.8",
+
+    "esbuild": "^0.24.2",
+    "mocha": "^10.4.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.1"
+  }
+}
