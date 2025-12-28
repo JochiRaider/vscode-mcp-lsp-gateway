@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { createMcpPostHandler } from './mcp/handler.js';
 import { SchemaRegistry } from './tools/schemaRegistry.js';
 import { HttpServer } from './server/httpServer.js';
+import { stableJsonStringify } from './util/stableStringify.js';
 import { computeAllowedRoots } from './workspace/roots.js';
 
 type GatewaySettings = Readonly<{
@@ -208,7 +209,7 @@ class ExtensionRuntime {
       return;
     }
 
-    const startKey = JSON.stringify({
+    const startKey = stableJsonStringify({
       bindAddress: settings.bindAddress,
       port: settings.port,
       endpointPath: settings.endpointPath,

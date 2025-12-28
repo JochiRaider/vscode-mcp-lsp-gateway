@@ -221,6 +221,8 @@ Two items are duplicates if their canonical JSON representation is byte-for-byte
 - string normalization (`code` stringification rules apply)
 - stable field omission rules (omit missing/undefined optional fields)
 
+Canonical JSON is produced via `stableJsonStringify` in `src/util/stableStringify.ts` (fast-stable-stringify).
+
 ### 4.4 Paging (cursor-based, stable)
 
 Paged tools MUST:
