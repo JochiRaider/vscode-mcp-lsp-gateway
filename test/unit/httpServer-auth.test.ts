@@ -3,7 +3,7 @@ import type * as vscode from "vscode";
 import { HttpServer, type GatewaySettings } from "../../src/server/httpServer";
 
 class FakeOutputChannel {
-  public appendLine(_line: string): void {
+  public appendLine(): void {
     // noop
   }
 }
@@ -26,7 +26,7 @@ describe("http server auth", () => {
     };
 
     const secrets = {
-      get: async () => undefined,
+      get: () => Promise.resolve(undefined),
     } as unknown as vscode.SecretStorage;
 
     const server = new HttpServer({

@@ -77,7 +77,7 @@ function bound(s: string, maxChars: number): string {
 
 function safeJson(meta: unknown): string {
   try {
-    return JSON.stringify(meta, (k, v) => {
+    return JSON.stringify(meta, (k: string, v: unknown): unknown => {
       if (k && isSensitiveHeaderKey(k.toLowerCase())) return "[REDACTED]";
       if (typeof v === "string") return redactString(v);
       return v;

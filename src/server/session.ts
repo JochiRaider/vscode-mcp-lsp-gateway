@@ -51,8 +51,8 @@ export function createSessionStore(opts: CreateSessionStoreOptions = {}): Sessio
 
   const evictIfNeeded = () => {
     while (sessions.size > maxSessions) {
-      const oldest = sessions.keys().next().value as string | undefined;
-      if (!oldest) break;
+      const oldest = sessions.keys().next().value;
+      if (typeof oldest !== "string") break;
       sessions.delete(oldest);
     }
   };

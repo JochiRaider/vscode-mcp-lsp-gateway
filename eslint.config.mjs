@@ -18,14 +18,13 @@ export default tseslint.config(
   // Base JS recommended rules
   eslint.configs.recommended,
 
-  // TypeScript recommended rules (non-type-aware)
-  tseslint.configs.recommended,
-
-  // Type-aware rules (the “type-checked preset”)
-  tseslint.configs.recommendedTypeChecked,
-
-  // Enable Project Service (recommended) so type-aware rules can work reliably
+  // TypeScript linting (scoped to TS only; do not run TS project service on JS/MJS files)
+  ...tseslint.configs.recommended.map((c) => ({
+    ...c,
+    files: ["src/**/*.ts", "test/**/*.ts"],
+  })),
   {
+    files: ["src/**/*.ts", "test/**/*.ts"],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -33,6 +32,10 @@ export default tseslint.config(
       },
     },
   },
+  ...tseslint.configs.recommendedTypeChecked.map((c) => ({
+    ...c,
+    files: ["src/**/*.ts", "test/**/*.ts"],
+  })),
 
   // Put Prettier last: it disables ESLint rules that conflict with Prettier
   eslintConfigPrettier,

@@ -75,7 +75,7 @@ function writeEmpty(res: http.ServerResponse, status: number, extraHeaders?: Rec
 
 export function createRouter(deps: RouterDeps): http.RequestListener {
   return (req, res) => {
-    void (async () => {
+    try {
       const method = (req.method ?? "").toUpperCase();
       const rawUrl = req.url ?? "";
       const pathname = rawUrl.split("?")[0] ?? "";
@@ -144,7 +144,8 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
         chunks.push(chunk);
       };
 
-      const onEnd = async () => {
+      const onEnd = () => {
+        void (async () => {
         if (res.writableEnded) return;
 
         const bodyBytes = total;
@@ -186,12 +187,15 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
 
         res.statusCode = result.status;
         res.end(shouldWriteBody ? result.bodyText : undefined);
+        })().catch(() => writeEmpty(res, 500));
       };
 
       req.on("data", onData);
       req.on("end", onEnd);
       req.on("error", () => writeEmpty(res, 400));
-    })().catch(() => writeEmpty(res, 500));
+    } catch {
+      writeEmpty(res, 500);
+    }
   };
 }
 

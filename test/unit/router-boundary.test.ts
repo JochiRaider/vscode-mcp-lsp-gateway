@@ -104,7 +104,7 @@ describe("router boundary", () => {
 
   it("passes only allowlisted headers to the handler", async () => {
     let seen: Record<string, string> | undefined;
-    const onMcpPost: McpPostHandler = async (ctx) => {
+    const onMcpPost: McpPostHandler = (ctx) => {
       seen = ctx.headers;
       return { status: 204 };
     };

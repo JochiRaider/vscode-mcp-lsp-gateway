@@ -17,8 +17,6 @@ import {
   parseJsonRpcMessage,
   type JsonRpcId,
   type JsonRpcErrorObject,
-  type JsonRpcRequest,
-  type JsonRpcNotification,
 } from "./jsonrpc.js";
 import { dispatchToolsList, dispatchToolCall } from "../tools/dispatcher.js";
 import type { SchemaRegistry } from "../tools/schemaRegistry.js";
@@ -63,7 +61,6 @@ type InitializeResult = Readonly<{
 const ERR_CURSOR_INVALID = "MCP_LSP_GATEWAY/CURSOR_INVALID" as const;
 const ERR_CAP_EXCEEDED = "MCP_LSP_GATEWAY/CAP_EXCEEDED" as const;
 const ERR_INVALID_PARAMS = "MCP_LSP_GATEWAY/INVALID_PARAMS" as const;
-const ERR_PROVIDER_UNAVAILABLE = "MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE" as const;
 
 export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPostHandler {
   // Global init state (used when sessions are disabled).
@@ -264,15 +261,15 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     // --- tools/list --------------------------------------------------------
     if (method === "tools/list") {
       // Params: { cursor?: string | null }
-      const cursor = getOptionalCursor(req.params);
-      if (cursor === "__invalid__") {
+      const cursorParsed = parseOptionalCursor(req.params);
+      if (!cursorParsed.ok) {
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
           message: "Invalid params",
           data: { code: ERR_INVALID_PARAMS },
         });
       }
-      if (cursor !== null) {
+      if (cursorParsed.cursor !== null) {
         // Fail closed: no pagination for tools/list in v1.
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
@@ -364,13 +361,18 @@ function getProtocolVersionParam(params: unknown): string | undefined {
   return typeof pv === "string" ? pv : undefined;
 }
 
-function getOptionalCursor(params: unknown): string | null | "__invalid__" {
-  if (params === undefined || params === null) return null;
-  if (typeof params !== "object" || Array.isArray(params)) return "__invalid__";
+type OptionalCursorParse =
+  | Readonly<{ ok: true; cursor: string | null }>
+  | Readonly<{ ok: false }>;
+
+function parseOptionalCursor(params: unknown): OptionalCursorParse {
+  if (params === undefined || params === null) return { ok: true, cursor: null };
+  if (typeof params !== "object" || Array.isArray(params)) return { ok: false };
   const rec = params as Record<string, unknown>;
   const c = rec.cursor;
-  if (c === undefined || c === null) return null;
-  return typeof c === "string" ? c : "__invalid__";
+  if (c === undefined || c === null) return { ok: true, cursor: null };
+  if (typeof c !== "string") return { ok: false };
+  return { ok: true, cursor: c };
 }
 
 type ToolsCallParams =

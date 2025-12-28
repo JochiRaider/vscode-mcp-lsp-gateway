@@ -2,7 +2,6 @@
 
 import * as vscode from "vscode";
 import { createMcpPostHandler } from "./mcp/handler.js";
-import type { McpPostHandler } from "./server/router.js";
 import { SchemaRegistry } from "./tools/schemaRegistry.js";
 import { HttpServer } from "./server/httpServer.js";
 import { computeAllowedRoots } from "./workspace/roots.js";
@@ -159,13 +158,13 @@ class ExtensionRuntime {
   private lastStartKey: string | undefined;
 
   public dispose(): void {
-    this.restartTimer && clearTimeout(this.restartTimer);
+    if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = undefined;
     void this.stopServer();
     this.output.dispose();
   }
 
-  public async ensureStartedIfEnabled(context: vscode.ExtensionContext): Promise<void> {
+  public async ensureStartedIfEnabled(): Promise<void> {
     // Never start in Restricted Mode. package.json also declares this, but enforce at runtime. 
     if (!vscode.workspace.isTrusted) {
       await this.stopServer();
@@ -270,11 +269,11 @@ class ExtensionRuntime {
     }
   }
 
-  public scheduleRestart(context: vscode.ExtensionContext): void {
+  public scheduleRestart(): void {
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = undefined;
-      void this.ensureStartedIfEnabled(context);
+      void this.ensureStartedIfEnabled();
     }, 150);
   }
 
@@ -307,20 +306,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   // Start if enabled.
-  await runtime.ensureStartedIfEnabled(context);
+  await runtime.ensureStartedIfEnabled();
 
   // Restart on relevant configuration changes.
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (!e.affectsConfiguration(EXT_NS)) return;
-      runtime?.scheduleRestart(context);
+      runtime?.scheduleRestart();
     }),
   );
 
   // Restart if workspace folder set changes (keeps allowedRootsRealpaths accurate).
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      runtime?.scheduleRestart(context);
+      runtime?.scheduleRestart();
     }),
   );
   // Optional: restart on token updates (so auth changes are immediately effective even if auth.ts caches).
@@ -328,12 +327,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.secrets.onDidChange((e) => {
       const { settings } = readAndValidateSettings();
       if (!settings) return;
-      if (e.key === settings.secretStorageKey) runtime?.scheduleRestart(context);
+      if (e.key === settings.secretStorageKey) runtime?.scheduleRestart();
     }),
   );
 }
 
-export async function deactivate(): Promise<void> {
+export function deactivate(): void {
   runtime?.dispose();
   runtime = undefined;
 }

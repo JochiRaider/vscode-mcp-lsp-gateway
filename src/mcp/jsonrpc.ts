@@ -56,10 +56,8 @@ export function parseJsonRpcMessage(bodyText: string): ParseJsonRpcMessageResult
 }
 
 export function validateJsonRpcMessage(value: unknown): ParseJsonRpcMessageResult {
-  if (!isRecord(value)) return { ok: false, reason: "invalid_envelope" };
-  if (Array.isArray(value)) return { ok: false, reason: "invalid_envelope" }; // batch arrays forbidden
+  if (!isRecord(value) || Array.isArray(value)) return { ok: false, reason: "invalid_envelope" };
 
-  // Base JSON-RPC invariant
   if (value.jsonrpc !== "2.0") return { ok: false, reason: "invalid_envelope" };
 
   const hasMethod = hasOwn(value, "method");
@@ -67,14 +65,10 @@ export function validateJsonRpcMessage(value: unknown): ParseJsonRpcMessageResul
   const hasError = hasOwn(value, "error");
   const hasId = hasOwn(value, "id");
 
-  // Fail closed on ambiguous mixed shapes.
-  // Requests/notifications should not also contain result/error.
   if (hasMethod && (hasResult || hasError)) return { ok: false, reason: "invalid_envelope" };
-  // Responses should not contain method.
-  if (!hasMethod && hasOwn(value, "method")) return { ok: false, reason: "invalid_envelope" }; // defensive
-  if (!hasMethod && typeof (value as Record<string, unknown>).method !== "undefined") {
-    return { ok: false, reason: "invalid_envelope" };
-  }
+
+  // Defensive: if method exists but isn't an own-property, still fail closed.
+  if (!hasMethod && "method" in value) return { ok: false, reason: "invalid_envelope" };
 
   if (hasMethod) {
     const method = value.method;
@@ -82,7 +76,6 @@ export function validateJsonRpcMessage(value: unknown): ParseJsonRpcMessageResul
       return { ok: false, reason: "invalid_envelope" };
     }
 
-    // Notification: no "id" member.
     if (!hasId) {
       const msg: JsonRpcNotification = {
         jsonrpc: "2.0",
@@ -92,8 +85,7 @@ export function validateJsonRpcMessage(value: unknown): ParseJsonRpcMessageResul
       return { ok: true, message: { kind: "notification", msg } };
     }
 
-    // Request: "id" must be string|number and not null.
-    const id = (value as Record<string, unknown>).id;
+    const id = value.id;
     if (!isJsonRpcId(id)) return { ok: false, reason: "invalid_envelope" };
 
     const msg: JsonRpcRequest = {
@@ -105,25 +97,24 @@ export function validateJsonRpcMessage(value: unknown): ParseJsonRpcMessageResul
     return { ok: true, message: { kind: "request", msg } };
   }
 
-  // Response: must have id and either result or error (but not both).
   if (!hasId) return { ok: false, reason: "invalid_envelope" };
-  const id = (value as Record<string, unknown>).id;
+  const id = value.id;
   if (!isJsonRpcId(id)) return { ok: false, reason: "invalid_envelope" };
 
   const hasEither = (hasResult ? 1 : 0) + (hasError ? 1 : 0);
   if (hasEither !== 1) return { ok: false, reason: "invalid_envelope" };
 
   if (hasError) {
-    const err = (value as Record<string, unknown>).error;
+    const err = value.error;
     if (!isJsonRpcErrorObject(err)) return { ok: false, reason: "invalid_envelope" };
-
     const msg: JsonRpcResponse = { jsonrpc: "2.0", id, error: err };
     return { ok: true, message: { kind: "response", msg } };
   }
 
-  const msg: JsonRpcResponse = { jsonrpc: "2.0", id, result: (value as Record<string, unknown>).result };
+  const msg: JsonRpcResponse = { jsonrpc: "2.0", id, result: value.result };
   return { ok: true, message: { kind: "response", msg } };
 }
+
 
 export function isJsonRpcId(v: unknown): v is JsonRpcId {
   if (typeof v === "string") return v.length > 0;

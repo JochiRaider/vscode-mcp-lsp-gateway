@@ -45,7 +45,7 @@ export class SchemaRegistry {
     return created;
   }
 
-  public static async create(context: vscode.ExtensionContext): Promise<SchemaRegistry> {
+  public static create(context: vscode.ExtensionContext): Promise<SchemaRegistry> {
     // Use both extensionUri and asAbsolutePath (per contract guidance).
     // extensionUri is useful for future fs APIs; asAbsolutePath yields a stable on-disk path.
     const toolsDirUri = vscode.Uri.joinPath(context.extensionUri, "schemas", "tools");
@@ -90,7 +90,7 @@ export class SchemaRegistry {
       validateByTool.set(toolName, validate);
     }
 
-    return new SchemaRegistry(schemaByTool, validateByTool);
+    return Promise.resolve(new SchemaRegistry(schemaByTool, validateByTool));
   }
 
   private constructor(

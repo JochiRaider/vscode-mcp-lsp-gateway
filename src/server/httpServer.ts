@@ -46,7 +46,7 @@ export class HttpServer {
 
     // Fail closed: localhost-only.
     if (settings.bindAddress !== "127.0.0.1") {
-      throw new Error(`Refusing to bind to non-loopback address: ${settings.bindAddress}`);
+      throw new Error("Refusing to bind to non-loopback address.");
     }
 
     const logger = createLogger(this.deps.output, { debugEnabled: settings.debugLogging });
