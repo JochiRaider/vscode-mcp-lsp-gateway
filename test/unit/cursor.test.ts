@@ -14,15 +14,7 @@ import {
   checkWorkspaceSymbolsTotalCap,
   normalizeWorkspaceSymbolsQuery,
 } from '../../src/tools/handlers/workspaceSymbols';
-import { SchemaRegistry } from '../../src/tools/schemaRegistry';
 import { canonicalizeAndGateFileUri } from '../../src/workspace/uri';
-
-function createTestContext(repoRoot: string): vscode.ExtensionContext {
-  return {
-    extensionUri: vscode.Uri.file(repoRoot),
-    asAbsolutePath: (relPath: string) => path.join(repoRoot, relPath),
-  } as unknown as vscode.ExtensionContext;
-}
 
 describe('cursor helpers', () => {
   it('encodes/decodes a v1 cursor payload', () => {
@@ -94,8 +86,6 @@ describe('cursor helpers', () => {
 describe('paged tool cursor validation', () => {
   it('rejects cursor mismatches for references', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
-    const context = createTestContext(repoRoot);
-    const schemaRegistry = await SchemaRegistry.create(context);
     const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
 
     const filePath = path.join(repoRoot, 'docs', 'CONTRACT.md');
@@ -114,7 +104,7 @@ describe('paged tool cursor validation', () => {
         includeDeclaration: true,
         cursor,
       },
-      { schemaRegistry, allowedRootsRealpaths, maxItemsPerPage: 200 },
+      { allowedRootsRealpaths, maxItemsPerPage: 200 },
     );
 
     expect(res.ok).to.equal(false);

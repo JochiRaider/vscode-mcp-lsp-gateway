@@ -9,10 +9,8 @@
 // - Surface tool/validation/gating/provider errors as JSON-RPC errors (JsonRpcErrorObject).
 //
 // Notes:
-// - Individual handlers may currently perform Ajv validation and URI gating themselves (as your stubs do).
-//   This dispatcher is compatible with that pattern.
-// - If you later refactor handlers to assume validated/gated input, move Ajv + gating here and
-//   simplify handlers accordingly.
+// - Ajv input validation runs here (single validation path).
+// - Handlers assume validated inputs and perform tool-specific gating/normalization.
 
 import type { JsonRpcErrorObject } from '../mcp/jsonrpc.js';
 import {
@@ -24,14 +22,19 @@ import {
 import type { SchemaRegistry } from './schemaRegistry.js';
 
 // Handlers
-import { handleDefinition } from './handlers/definition.js';
-import type { DefinitionInput } from './handlers/definition.js';
-import { handleReferences } from './handlers/references.js';
-import { handleHover } from './handlers/hover.js';
-import { handleDocumentSymbols } from './handlers/documentSymbols.js';
-import { handleWorkspaceSymbols } from './handlers/workspaceSymbols.js';
-import { handleDiagnosticsDocument } from './handlers/diagnosticsDocument.js';
-import { handleDiagnosticsWorkspace } from './handlers/diagnosticsWorkspace.js';
+import { handleDefinition, type DefinitionInput } from './handlers/definition.js';
+import { handleReferences, type ReferencesInput } from './handlers/references.js';
+import { handleHover, type HoverInput } from './handlers/hover.js';
+import { handleDocumentSymbols, type DocumentSymbolsInput } from './handlers/documentSymbols.js';
+import { handleWorkspaceSymbols, type WorkspaceSymbolsInput } from './handlers/workspaceSymbols.js';
+import {
+  handleDiagnosticsDocument,
+  type DiagnosticsDocumentInput,
+} from './handlers/diagnosticsDocument.js';
+import {
+  handleDiagnosticsWorkspace,
+  type DiagnosticsWorkspaceInput,
+} from './handlers/diagnosticsWorkspace.js';
 
 const ERROR_CODE_INVALID_PARAMS = 'MCP_LSP_GATEWAY/INVALID_PARAMS' as const;
 const ERROR_CODE_CAP_EXCEEDED = 'MCP_LSP_GATEWAY/CAP_EXCEEDED' as const;
@@ -75,52 +78,45 @@ type RoutedHandler = (args: unknown, deps: ToolsDispatcherDeps) => Promise<Handl
 
 const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
   'vscode.lsp.definition': async (args, deps) => {
-    // Definition handler expects a typed input; it also does defensive validation internally.
     return await handleDefinition(args as DefinitionInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
   'vscode.lsp.references': async (args, deps) => {
-    return await handleReferences(args, {
-      schemaRegistry: deps.schemaRegistry,
+    return await handleReferences(args as ReferencesInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
     });
   },
 
   'vscode.lsp.hover': async (args, deps) => {
-    return await handleHover(args, {
-      schemaRegistry: deps.schemaRegistry,
+    return await handleHover(args as HoverInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
   'vscode.lsp.documentSymbols': async (args, deps) => {
-    return await handleDocumentSymbols(args, {
-      schemaRegistry: deps.schemaRegistry,
+    return await handleDocumentSymbols(args as DocumentSymbolsInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
   'vscode.lsp.workspaceSymbols': async (args, deps) => {
-    return await handleWorkspaceSymbols(args, {
-      schemaRegistry: deps.schemaRegistry,
+    return await handleWorkspaceSymbols(args as WorkspaceSymbolsInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
     });
   },
 
   'vscode.lsp.diagnostics.document': async (args, deps) => {
-    return await handleDiagnosticsDocument(args, {
-      schemaRegistry: deps.schemaRegistry,
+    return await handleDiagnosticsDocument(args as DiagnosticsDocumentInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
     });
   },
 
   'vscode.lsp.diagnostics.workspace': async (args, deps) => {
-    return await handleDiagnosticsWorkspace(args, {
-      schemaRegistry: deps.schemaRegistry,
+    return await handleDiagnosticsWorkspace(args as DiagnosticsWorkspaceInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
     });

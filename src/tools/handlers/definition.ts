@@ -50,25 +50,8 @@ export async function handleDefinition(
   input: DefinitionInput,
   deps: DefinitionDeps,
 ): Promise<ToolResult> {
-  // Defensive normalization (schema should already enforce, but fail closed).
-  const line = normalizeNonNegativeInt(input?.position?.line);
-  const character = normalizeNonNegativeInt(input?.position?.character);
-  if (line === undefined || character === undefined) {
-    return {
-      ok: false,
-      error: toolError(
-        E_INVALID_PARAMS,
-        'MCP_LSP_GATEWAY/INVALID_PARAMS',
-        'position must be non-negative integers',
-      ),
-    };
-  }
-
   // Gate + canonicalize input URI (fail closed).
-  const gated = await canonicalizeAndGateFileUri(
-    String(input?.uri ?? ''),
-    deps.allowedRootsRealpaths,
-  );
+  const gated = await canonicalizeAndGateFileUri(input.uri, deps.allowedRootsRealpaths);
   if (!gated.ok) {
     return {
       ok: false,
@@ -90,7 +73,7 @@ export async function handleDefinition(
     raw = await vscode.commands.executeCommand(
       'vscode.executeDefinitionProvider',
       doc.uri,
-      new vscode.Position(line, character),
+      new vscode.Position(input.position.line, input.position.character),
     );
   } catch {
     // Avoid leaking provider / filesystem details.
@@ -198,13 +181,6 @@ function isLocationLink(v: unknown): v is vscode.LocationLink {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.targetUri instanceof vscode.Uri && o.targetRange instanceof vscode.Range;
-}
-
-function normalizeNonNegativeInt(v: unknown): number | undefined {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
-  if (!Number.isInteger(v)) return undefined;
-  if (v < 0) return undefined;
-  return v;
 }
 
 function toolError(

@@ -1,7 +1,7 @@
 // src/tools/handlers/references.ts
 //
 // vscode.lsp.references (v1)
-// - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
+// - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Executes VS Code's reference provider and normalizes to contract Location[]
 // - Stable sort + deterministic dedupe + total-set cap enforcement
@@ -9,7 +9,6 @@
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
-import type { SchemaRegistry } from '../schemaRegistry.js';
 import {
   canonicalizeAndGateFileUri,
   canonicalizeFileUri,
@@ -31,53 +30,48 @@ type ContractPosition = Readonly<{ line: number; character: number }>;
 type ContractRange = Readonly<{ start: ContractPosition; end: ContractPosition }>;
 type ContractLocation = Readonly<{ uri: string; range: ContractRange }>;
 
+export type ReferencesInput = Readonly<{
+  uri: string;
+  position: Readonly<{ line: number; character: number }>;
+  includeDeclaration?: boolean;
+  cursor?: string | null;
+  pageSize?: number;
+}>;
+
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
   | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
 
 export type ReferencesDeps = Readonly<{
-  schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
 }>;
 
-export async function handleReferences(args: unknown, deps: ReferencesDeps): Promise<ToolResult> {
-  const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
-  if (!validated.ok) return { ok: false, error: validated.error };
-
-  const v = validated.value as Readonly<{
-    uri: string;
-    position: Readonly<{ line: number; character: number }>;
-    includeDeclaration?: boolean;
-    cursor?: string | null;
-    pageSize?: number;
-  }>;
-
-  const line = normalizeNonNegativeInt(v.position?.line);
-  const character = normalizeNonNegativeInt(v.position?.character);
-  if (line === undefined || character === undefined) {
-    return { ok: false, error: toolError(E_INVALID_PARAMS, 'MCP_LSP_GATEWAY/INVALID_PARAMS') };
-  }
-
-  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
-    ok: false as const,
-    code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
-  }));
+export async function handleReferences(
+  args: ReferencesInput,
+  deps: ReferencesDeps,
+): Promise<ToolResult> {
+  const gated = await canonicalizeAndGateFileUri(args.uri, deps.allowedRootsRealpaths).catch(
+    () => ({
+      ok: false as const,
+      code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
+    }),
+  );
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
-  const includeDeclaration = v.includeDeclaration === true;
+  const includeDeclaration = args.includeDeclaration === true;
   const requestKey = computeRequestKey(TOOL_NAME, [
     gated.value.uri,
-    line,
-    character,
+    args.position.line,
+    args.position.character,
     includeDeclaration,
   ]);
-  const cursorChecked = validateCursor(v.cursor, requestKey);
+  const cursorChecked = validateCursor(args.cursor, requestKey);
   if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
-  const pageSize = clampPageSize(v.pageSize, deps.maxItemsPerPage);
+  const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
   const docUri = vscode.Uri.parse(gated.value.uri, true);
   const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
   if (!doc) return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
@@ -87,7 +81,7 @@ export async function handleReferences(args: unknown, deps: ReferencesDeps): Pro
     raw = await vscode.commands.executeCommand(
       'vscode.executeReferenceProvider',
       doc.uri,
-      new vscode.Position(line, character),
+      new vscode.Position(args.position.line, args.position.character),
       includeDeclaration,
     );
   } catch {
@@ -101,7 +95,7 @@ export async function handleReferences(args: unknown, deps: ReferencesDeps): Pro
   const capError = checkReferencesTotalCap(deduped.length);
   if (capError) return { ok: false, error: capError };
 
-  const paged = paginate(deduped, pageSize, v.cursor ?? null, requestKey);
+  const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey);
   if (!paged.ok) return { ok: false, error: paged.error };
 
   const summary =
@@ -203,13 +197,6 @@ function isLocationLink(v: unknown): v is vscode.LocationLink {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.targetUri instanceof vscode.Uri && o.targetRange instanceof vscode.Range;
-}
-
-function normalizeNonNegativeInt(v: unknown): number | undefined {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
-  if (!Number.isInteger(v)) return undefined;
-  if (v < 0) return undefined;
-  return v;
 }
 
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {

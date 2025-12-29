@@ -1,7 +1,7 @@
 // src/tools/handlers/documentSymbols.ts
 //
 // vscode.lsp.documentSymbols (v1)
-// - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
+// - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Executes VS Code's document symbol provider and normalizes to flattened output
 // - Stable sort + deterministic dedupe
@@ -9,7 +9,6 @@
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
-import type { SchemaRegistry } from '../schemaRegistry.js';
 import {
   canonicalizeAndGateFileUri,
   canonicalizeFileUri,
@@ -19,7 +18,6 @@ import {
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareDocumentSymbols, dedupeSortedByKey } from '../sorting.js';
 
-const TOOL_NAME = 'vscode.lsp.documentSymbols' as const;
 export const MAX_ITEMS_NONPAGED = 200;
 
 const E_INVALID_PARAMS = -32602;
@@ -36,29 +34,27 @@ type ContractDocumentSymbol = Readonly<{
   containerName?: string;
 }>;
 
+export type DocumentSymbolsInput = Readonly<{ uri: string }>;
+
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
   | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
 
 export type DocumentSymbolsDeps = Readonly<{
-  schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
 }>;
 
 export async function handleDocumentSymbols(
-  args: unknown,
+  args: DocumentSymbolsInput,
   deps: DocumentSymbolsDeps,
 ): Promise<ToolResult> {
-  const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
-  if (!validated.ok) return { ok: false, error: validated.error };
-
-  const v = validated.value as Readonly<{ uri: string }>;
-
-  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
-    ok: false as const,
-    code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
-  }));
+  const gated = await canonicalizeAndGateFileUri(args.uri, deps.allowedRootsRealpaths).catch(
+    () => ({
+      ok: false as const,
+      code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
+    }),
+  );
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 

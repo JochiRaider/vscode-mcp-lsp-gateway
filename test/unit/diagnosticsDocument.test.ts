@@ -11,14 +11,6 @@ import {
   handleDiagnosticsDocument,
 } from '../../src/tools/handlers/diagnosticsDocument';
 import { stableIdFromCanonicalString } from '../../src/tools/ids';
-import { SchemaRegistry } from '../../src/tools/schemaRegistry';
-
-function createTestContext(repoRoot: string): vscode.ExtensionContext {
-  return {
-    extensionUri: vscode.Uri.file(repoRoot),
-    asAbsolutePath: (relPath: string) => path.join(repoRoot, relPath),
-  } as unknown as vscode.ExtensionContext;
-}
 
 describe('diagnostics document normalization', () => {
   it('stringifies code variants and omits absent code', () => {
@@ -111,17 +103,12 @@ describe('diagnostics document normalization', () => {
 describe('diagnostics document gating', () => {
   it('rejects invalid file URIs deterministically', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
-    const context = createTestContext(repoRoot);
-    const schemaRegistry = await SchemaRegistry.create(context);
     const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
 
     const missingPath = path.join(repoRoot, 'does-not-exist.ts');
     const missingUri = vscode.Uri.file(missingPath).toString();
 
-    const res = await handleDiagnosticsDocument(
-      { uri: missingUri },
-      { schemaRegistry, allowedRootsRealpaths },
-    );
+    const res = await handleDiagnosticsDocument({ uri: missingUri }, { allowedRootsRealpaths });
 
     expect(res.ok).to.equal(false);
     if (!res.ok) {
@@ -133,8 +120,6 @@ describe('diagnostics document gating', () => {
 
   it('rejects out-of-root file URIs deterministically', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
-    const context = createTestContext(repoRoot);
-    const schemaRegistry = await SchemaRegistry.create(context);
     const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-lsp-gateway-'));
@@ -142,10 +127,7 @@ describe('diagnostics document gating', () => {
     fs.writeFileSync(tempFile, 'export const x = 1;', 'utf8');
 
     const tempUri = vscode.Uri.file(tempFile).toString();
-    const res = await handleDiagnosticsDocument(
-      { uri: tempUri },
-      { schemaRegistry, allowedRootsRealpaths },
-    );
+    const res = await handleDiagnosticsDocument({ uri: tempUri }, { allowedRootsRealpaths });
 
     fs.rmSync(tempDir, { recursive: true, force: true });
 

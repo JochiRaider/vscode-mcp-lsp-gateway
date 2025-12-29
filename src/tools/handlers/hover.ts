@@ -1,23 +1,26 @@
 // src/tools/handlers/hover.ts
 //
 // vscode.lsp.hover (v1)
-// - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
+// - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Executes VS Code's hover provider and normalizes contents deterministically
 // - Stable range selection and deterministic content ordering
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
-import type { SchemaRegistry } from '../schemaRegistry.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
 
-const TOOL_NAME = 'vscode.lsp.hover' as const;
 const E_INVALID_PARAMS = -32602;
 const E_INTERNAL = -32603;
 
 type ContractPosition = Readonly<{ line: number; character: number }>;
 type ContractRange = Readonly<{ start: ContractPosition; end: ContractPosition }>;
 type HoverContent = Readonly<{ kind: 'markdown' | 'plaintext'; value: string }>;
+
+export type HoverInput = Readonly<{
+  uri: string;
+  position: Readonly<{ line: number; character: number }>;
+}>;
 
 export type ToolResult =
   | Readonly<{ ok: true; result: HoverOutput }>
@@ -30,37 +33,17 @@ type HoverOutput = Readonly<{
 }>;
 
 export type HoverDeps = Readonly<{
-  schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
 }>;
 
-export async function handleHover(args: unknown, deps: HoverDeps): Promise<ToolResult> {
-  const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
-  if (!validated.ok) return { ok: false, error: validated.error };
-
-  const v = validated.value as Readonly<{
-    uri: string;
-    position: Readonly<{ line: number; character: number }>;
-  }>;
-
-  const line = normalizeNonNegativeInt(v.position?.line);
-  const character = normalizeNonNegativeInt(v.position?.character);
-  if (line === undefined || character === undefined) {
-    return {
-      ok: false,
-      error: toolError(
-        E_INVALID_PARAMS,
-        'MCP_LSP_GATEWAY/INVALID_PARAMS',
-        'position must be non-negative integers',
-      ),
-    };
-  }
-
-  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
-    ok: false as const,
-    code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
-  }));
+export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<ToolResult> {
+  const gated = await canonicalizeAndGateFileUri(args.uri, deps.allowedRootsRealpaths).catch(
+    () => ({
+      ok: false as const,
+      code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
+    }),
+  );
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
@@ -75,7 +58,7 @@ export async function handleHover(args: unknown, deps: HoverDeps): Promise<ToolR
     raw = await vscode.commands.executeCommand(
       'vscode.executeHoverProvider',
       doc.uri,
-      new vscode.Position(line, character),
+      new vscode.Position(args.position.line, args.position.character),
     );
   } catch {
     return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
@@ -125,13 +108,6 @@ async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocu
   const existing = vscode.workspace.textDocuments.find((d) => d.uri.toString() === asString);
   if (existing) return existing;
   return await vscode.workspace.openTextDocument(uri);
-}
-
-function normalizeNonNegativeInt(v: unknown): number | undefined {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
-  if (!Number.isInteger(v)) return undefined;
-  if (v < 0) return undefined;
-  return v;
 }
 
 function normalizeHoverArray(raw: unknown): vscode.Hover[] {

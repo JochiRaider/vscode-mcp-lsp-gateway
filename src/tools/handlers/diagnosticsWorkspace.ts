@@ -1,14 +1,13 @@
 // src/tools/handlers/diagnosticsWorkspace.ts
 //
 // vscode.lsp.diagnostics.workspace (v1)
-// - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
+// - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - Canonicalize and filter URIs to allowed roots
 // - Normalize diagnostics per file deterministically (sort/dedupe/cap)
 // - Cursor-based paging by file groups with deterministic rejection on mismatch
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
-import type { SchemaRegistry } from '../schemaRegistry.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
 import { computeRequestKey, paginate, validateCursor } from '../paging/cursor.js';
 import { enforceDiagnosticsCap, normalizeDiagnostics } from './diagnosticsDocument.js';
@@ -31,30 +30,30 @@ type ContractDiagnostic = Readonly<{
   message: string;
 }>;
 
+export type DiagnosticsWorkspaceInput = Readonly<{
+  cursor?: string | null;
+  pageSize?: number;
+}>;
+
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
   | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
 
 export type DiagnosticsWorkspaceDeps = Readonly<{
-  schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
 }>;
 
 export async function handleDiagnosticsWorkspace(
-  args: unknown,
+  args: DiagnosticsWorkspaceInput,
   deps: DiagnosticsWorkspaceDeps,
 ): Promise<ToolResult> {
-  const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
-  if (!validated.ok) return { ok: false, error: validated.error };
-
-  const v = validated.value as Readonly<{ cursor?: string | null; pageSize?: number }>;
   const requestKey = computeRequestKey(TOOL_NAME, []);
-  const cursorChecked = validateCursor(v.cursor, requestKey);
+  const cursorChecked = validateCursor(args.cursor, requestKey);
   if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
-  const pageSize = clampPageSize(v.pageSize, deps.maxItemsPerPage);
+  const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
   let raw: unknown;
   try {
@@ -68,7 +67,7 @@ export async function handleDiagnosticsWorkspace(
   const capError = checkWorkspaceDiagnosticsTotalCap(normalized.groups.length);
   if (capError) return { ok: false, error: capError };
 
-  const paged = paginate(normalized.groups, pageSize, v.cursor ?? null, requestKey);
+  const paged = paginate(normalized.groups, pageSize, args.cursor ?? null, requestKey);
   if (!paged.ok) return { ok: false, error: paged.error };
 
   const items = paged.items.map(stripGroupCapped);

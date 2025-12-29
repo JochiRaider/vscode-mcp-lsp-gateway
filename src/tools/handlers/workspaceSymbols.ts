@@ -1,7 +1,7 @@
 // src/tools/handlers/workspaceSymbols.ts
 //
 // vscode.lsp.workspaceSymbols (v1)
-// - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
+// - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - Normalize query, execute VS Code workspace symbol provider
 // - Canonicalize output URIs and filter to allowed roots
 // - Stable sort + deterministic dedupe + total-set cap enforcement
@@ -9,7 +9,6 @@
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
-import type { SchemaRegistry } from '../schemaRegistry.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareWorkspaceSymbols, dedupeSortedByKey } from '../sorting.js';
@@ -34,36 +33,32 @@ type ContractWorkspaceSymbol = Readonly<{
   containerName?: string;
 }>;
 
+export type WorkspaceSymbolsInput = Readonly<{
+  query: string;
+  cursor?: string | null;
+  pageSize?: number;
+}>;
+
 export type ToolResult =
   | Readonly<{ ok: true; result: unknown }>
   | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
 
 export type WorkspaceSymbolsDeps = Readonly<{
-  schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
 }>;
 
 export async function handleWorkspaceSymbols(
-  args: unknown,
+  args: WorkspaceSymbolsInput,
   deps: WorkspaceSymbolsDeps,
 ): Promise<ToolResult> {
-  const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
-  if (!validated.ok) return { ok: false, error: validated.error };
-
-  const v = validated.value as Readonly<{
-    query: string;
-    cursor?: string | null;
-    pageSize?: number;
-  }>;
-
-  const normalizedQuery = normalizeWorkspaceSymbolsQuery(v.query);
+  const normalizedQuery = normalizeWorkspaceSymbolsQuery(args.query);
   const requestKey = computeRequestKey(TOOL_NAME, [normalizedQuery]);
-  const cursorChecked = validateCursor(v.cursor, requestKey);
+  const cursorChecked = validateCursor(args.cursor, requestKey);
   if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
-  const pageSize = clampPageSize(v.pageSize, deps.maxItemsPerPage);
+  const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
   let raw: unknown;
   try {
@@ -82,7 +77,7 @@ export async function handleWorkspaceSymbols(
   const capError = checkWorkspaceSymbolsTotalCap(deduped.length);
   if (capError) return { ok: false, error: capError };
 
-  const paged = paginate(deduped, pageSize, v.cursor ?? null, requestKey);
+  const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey);
   if (!paged.ok) return { ok: false, error: paged.error };
 
   const summary =

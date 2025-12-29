@@ -1,14 +1,13 @@
 // src/tools/handlers/diagnosticsDocument.ts
 //
 // vscode.lsp.diagnostics.document (v1)
-// - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
+// - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Normalizes diagnostics to contract shape with stable ids, sort, dedupe
 // - Enforces MAX_ITEMS_NONPAGED via deterministic truncation
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
-import type { SchemaRegistry } from '../schemaRegistry.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import {
   canonicalDedupeKey,
@@ -18,7 +17,6 @@ import {
 } from '../sorting.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
 
-const TOOL_NAME = 'vscode.lsp.diagnostics.document' as const;
 export const MAX_ITEMS_NONPAGED = 200;
 const E_INVALID_PARAMS = -32602;
 const E_INTERNAL = -32603;
@@ -33,6 +31,8 @@ type ContractDiagnostic = Readonly<{
   message: string;
 }>;
 
+export type DiagnosticsDocumentInput = Readonly<{ uri: string }>;
+
 export type ToolResult =
   | Readonly<{ ok: true; result: DiagnosticsDocumentOutput }>
   | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
@@ -44,24 +44,20 @@ type DiagnosticsDocumentOutput = Readonly<{
 }>;
 
 export type DiagnosticsDocumentDeps = Readonly<{
-  schemaRegistry: SchemaRegistry;
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
 }>;
 
 export async function handleDiagnosticsDocument(
-  args: unknown,
+  args: DiagnosticsDocumentInput,
   deps: DiagnosticsDocumentDeps,
 ): Promise<ToolResult> {
-  const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
-  if (!validated.ok) return { ok: false, error: validated.error };
-
-  const v = validated.value as Readonly<{ uri: string }>;
-
-  const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
-    ok: false as const,
-    code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
-  }));
+  const gated = await canonicalizeAndGateFileUri(args.uri, deps.allowedRootsRealpaths).catch(
+    () => ({
+      ok: false as const,
+      code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
+    }),
+  );
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
