@@ -16,11 +16,7 @@ import {
   canonicalizeFileUri,
   isRealPathAllowed,
 } from '../../workspace/uri.js';
-import {
-  canonicalDedupeKey,
-  compareLocations,
-  dedupeSortedByKey,
-} from '../sorting.js';
+import { canonicalDedupeKey, compareLocations, dedupeSortedByKey } from '../sorting.js';
 
 const MAX_ITEMS_NONPAGED = 200;
 

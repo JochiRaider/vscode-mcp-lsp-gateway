@@ -33,12 +33,10 @@ describe('hover truncation', () => {
     const measured = (candidate: unknown) =>
       jsonByteLength({ jsonrpc: '2.0', id: 1, result: candidate });
 
-    const truncated = truncateHoverToolCallResult(
-      toolResult,
-      maxResponseBytes,
-      measured,
-      { maxFragments: 8, maxFragmentCodepoints: 8192 },
-    );
+    const truncated = truncateHoverToolCallResult(toolResult, maxResponseBytes, measured, {
+      maxFragments: 8,
+      maxFragmentCodepoints: 8192,
+    });
 
     const size = measured(truncated.result);
     expect(size).to.be.at.most(maxResponseBytes);
@@ -49,5 +47,36 @@ describe('hover truncation', () => {
     };
     expect(structured.contents[0].value.length).to.be.lessThan(longValue.length);
     expect(structured.summary ?? '').to.include('Truncated');
+  });
+
+  it('truncates hover content at UTF-8 boundaries', () => {
+    const emoji = '😀';
+    const longValue = emoji.repeat(2000);
+    const toolResult = {
+      isError: false,
+      structuredContent: {
+        contents: [{ kind: 'markdown', value: longValue }],
+        summary: 'Hover available.',
+      },
+      content: [{ type: 'text', text: 'Hover available.' }],
+    };
+
+    const maxResponseBytes = 900;
+    const measured = (candidate: unknown) =>
+      jsonByteLength({ jsonrpc: '2.0', id: 1, result: candidate });
+
+    const truncated = truncateHoverToolCallResult(toolResult, maxResponseBytes, measured);
+    const size = measured(truncated.result);
+    expect(size).to.be.at.most(maxResponseBytes);
+
+    const structured = truncated.result.structuredContent as {
+      contents: Array<{ value: string }>;
+    };
+    const truncatedValue = structured.contents[0].value;
+    const originalCodepoints = Array.from(longValue);
+    const truncatedCodepoints = Array.from(truncatedValue);
+    expect(truncatedValue).to.equal(
+      originalCodepoints.slice(0, truncatedCodepoints.length).join(''),
+    );
   });
 });

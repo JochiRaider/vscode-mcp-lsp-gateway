@@ -9,7 +9,11 @@ import {
   paginate,
   validateCursor,
 } from '../../src/tools/paging/cursor';
-import { handleReferences } from '../../src/tools/handlers/references';
+import { checkReferencesTotalCap, handleReferences } from '../../src/tools/handlers/references';
+import {
+  checkWorkspaceSymbolsTotalCap,
+  normalizeWorkspaceSymbolsQuery,
+} from '../../src/tools/handlers/workspaceSymbols';
 import { SchemaRegistry } from '../../src/tools/schemaRegistry';
 import { canonicalizeAndGateFileUri } from '../../src/workspace/uri';
 
@@ -32,10 +36,9 @@ describe('cursor helpers', () => {
     const key = computeRequestKey('vscode.lsp.workspaceSymbols', ['query']);
     const encoded = encodeCursor({ v: 1, o: 0, k: key });
 
-    const badVersion = Buffer.from(
-      JSON.stringify({ v: 2, o: 0, k: key }),
-      'utf8',
-    ).toString('base64url');
+    const badVersion = Buffer.from(JSON.stringify({ v: 2, o: 0, k: key }), 'utf8').toString(
+      'base64url',
+    );
     const versionRes = validateCursor(badVersion, key);
     expect(versionRes.ok).to.equal(false);
     if (!versionRes.ok) {
@@ -44,10 +47,9 @@ describe('cursor helpers', () => {
       expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
     }
 
-    const badOffset = Buffer.from(
-      JSON.stringify({ v: 1, o: -1, k: key }),
-      'utf8',
-    ).toString('base64url');
+    const badOffset = Buffer.from(JSON.stringify({ v: 1, o: -1, k: key }), 'utf8').toString(
+      'base64url',
+    );
     const offsetRes = validateCursor(badOffset, key);
     expect(offsetRes.ok).to.equal(false);
     if (!offsetRes.ok) {
@@ -102,12 +104,7 @@ describe('paged tool cursor validation', () => {
     expect(gated.ok).to.equal(true);
     if (!gated.ok) return;
 
-    const requestKey = computeRequestKey('vscode.lsp.references', [
-      gated.value.uri,
-      1,
-      2,
-      false,
-    ]);
+    const requestKey = computeRequestKey('vscode.lsp.references', [gated.value.uri, 1, 2, false]);
     const cursor = encodeCursor({ v: 1, o: 0, k: requestKey });
 
     const res = await handleReferences(
@@ -117,7 +114,7 @@ describe('paged tool cursor validation', () => {
         includeDeclaration: true,
         cursor,
       },
-      { schemaRegistry, allowedRootsRealpaths },
+      { schemaRegistry, allowedRootsRealpaths, maxItemsPerPage: 200 },
     );
 
     expect(res.ok).to.equal(false);
@@ -126,5 +123,42 @@ describe('paged tool cursor validation', () => {
       const data = res.error.data as { code?: string };
       expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
     }
+  });
+
+  it('returns CAP_EXCEEDED for references total-set cap', () => {
+    const err = checkReferencesTotalCap(20001);
+    expect(err).to.not.equal(undefined);
+    if (!err) return;
+    expect(err.code).to.equal(-32603);
+    const data = err.data as { code?: string };
+    expect(data.code).to.equal('MCP_LSP_GATEWAY/CAP_EXCEEDED');
+  });
+
+  it('normalizes workspace symbol queries via trim', () => {
+    expect(normalizeWorkspaceSymbolsQuery('  foo  ')).to.equal('foo');
+  });
+
+  it('rejects cursor mismatches for workspace symbols', () => {
+    const k1 = computeRequestKey('vscode.lsp.workspaceSymbols', [
+      normalizeWorkspaceSymbolsQuery('  foo  '),
+    ]);
+    const cursor = encodeCursor({ v: 1, o: 0, k: k1 });
+    const k2 = computeRequestKey('vscode.lsp.workspaceSymbols', ['bar']);
+    const res = validateCursor(cursor, k2);
+    expect(res.ok).to.equal(false);
+    if (!res.ok) {
+      expect(res.error.code).to.equal(-32602);
+      const data = res.error.data as { code?: string };
+      expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
+    }
+  });
+
+  it('returns CAP_EXCEEDED for workspace symbols total-set cap', () => {
+    const err = checkWorkspaceSymbolsTotalCap(20001);
+    expect(err).to.not.equal(undefined);
+    if (!err) return;
+    expect(err.code).to.equal(-32603);
+    const data = err.data as { code?: string };
+    expect(data.code).to.equal('MCP_LSP_GATEWAY/CAP_EXCEEDED');
   });
 });

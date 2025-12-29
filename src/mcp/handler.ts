@@ -306,11 +306,8 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
       const toolResult =
         toolName === 'vscode.lsp.hover'
-          ? truncateHoverToolCallResult(
-              dispatched.result,
-              opts.maxResponseBytes,
-              (candidate) =>
-                jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
+          ? truncateHoverToolCallResult(dispatched.result, opts.maxResponseBytes, (candidate) =>
+              jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
             ).result
           : dispatched.result;
       const response = jsonRpcResultResponse(req.id, toolResult);

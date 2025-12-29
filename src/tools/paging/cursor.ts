@@ -36,7 +36,7 @@ export function decodeCursor(raw: string): CursorPayload | null {
   if (typeof raw !== 'string' || raw.length === 0) return null;
   try {
     const json = Buffer.from(raw, 'base64url').toString('utf8');
-    const parsed = JSON.parse(json);
+    const parsed: unknown = JSON.parse(json);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const rec = parsed as Record<string, unknown>;
     if (rec.v !== CURSOR_VERSION) return null;
@@ -76,7 +76,9 @@ export function paginate<T>(
   const items = full.slice(offset, offset + safePageSize);
   const nextOffset = offset + safePageSize;
   const nextCursor =
-    nextOffset >= full.length ? null : encodeCursor({ v: CURSOR_VERSION, o: nextOffset, k: requestKey });
+    nextOffset >= full.length
+      ? null
+      : encodeCursor({ v: CURSOR_VERSION, o: nextOffset, k: requestKey });
   return { ok: true, items, nextCursor, offset };
 }
 

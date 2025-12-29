@@ -80,10 +80,7 @@ export function compareDiagnostics(a: ContractDiagnostic, b: ContractDiagnostic)
   return 0;
 }
 
-export function dedupeSortedByKey<T>(
-  items: readonly T[],
-  keyFn: (item: T) => string,
-): T[] {
+export function dedupeSortedByKey<T>(items: readonly T[], keyFn: (item: T) => string): T[] {
   const out: T[] = [];
   let lastKey: string | undefined;
 
@@ -113,10 +110,7 @@ function comparePositions(a: ContractPosition, b: ContractPosition): number {
   return 0;
 }
 
-function compareOptionalStringMissingLast(
-  a: string | undefined,
-  b: string | undefined,
-): number {
+function compareOptionalStringMissingLast(a: string | undefined, b: string | undefined): number {
   if (a === undefined && b === undefined) return 0;
   if (a === undefined) return 1;
   if (b === undefined) return -1;
@@ -124,10 +118,7 @@ function compareOptionalStringMissingLast(
   return 0;
 }
 
-function compareOptionalNumberMissingLast(
-  a: number | undefined,
-  b: number | undefined,
-): number {
+function compareOptionalNumberMissingLast(a: number | undefined, b: number | undefined): number {
   if (a === undefined && b === undefined) return 0;
   if (a === undefined) return 1;
   if (b === undefined) return -1;

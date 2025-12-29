@@ -211,9 +211,7 @@ function assertRootSchemaInvariants(
   // Enforce contract requirement to prevent foot-guns and test ambiguity.
   const ap = schema['additionalProperties'];
   if (ap !== false) {
-    throw new Error(
-      `Tool ${kind} schema root must set additionalProperties: false (${toolName}).`,
-    );
+    throw new Error(`Tool ${kind} schema root must set additionalProperties: false (${toolName}).`);
   }
 }
 

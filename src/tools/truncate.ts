@@ -8,12 +8,6 @@ const DEFAULT_MAX_FRAGMENTS = 8;
 const DEFAULT_MAX_FRAGMENT_CODEPOINTS = 8192;
 
 type HoverContent = Readonly<{ kind: 'markdown' | 'plaintext'; value: string }>;
-type HoverOutput = Readonly<{
-  contents: readonly HoverContent[];
-  range?: unknown;
-  summary?: string;
-}>;
-
 export function truncateHoverToolCallResult(
   result: ToolCallResult,
   maxResponseBytes: number,
@@ -44,7 +38,7 @@ export function truncateHoverToolCallResult(
   nextContents = nextContents.map((frag) => {
     const clamped = clampCodepoints(frag.value, maxFragmentCodepoints);
     if (clamped !== frag.value) truncated = true;
-    return { ...frag, value: clamped };
+    return { kind: frag.kind, value: clamped };
   });
 
   let candidate = buildResult(result, rec, nextContents, truncated);
@@ -61,7 +55,7 @@ export function truncateHoverToolCallResult(
   }
 
   const lastIndex = nextContents.length - 1;
-  const last = nextContents[lastIndex];
+  const last = nextContents[lastIndex]!;
   const codepoints = Array.from(last.value);
 
   let lo = 0;
@@ -73,7 +67,7 @@ export function truncateHoverToolCallResult(
     const mid = Math.floor((lo + hi) / 2);
     const value = codepoints.slice(0, mid).join('');
     const adjusted = nextContents.slice(0);
-    adjusted[lastIndex] = { ...last, value };
+    adjusted[lastIndex] = { kind: last.kind, value };
     const adjustedResult = buildResult(result, rec, adjusted, true);
     if (measureJsonRpcBytes(adjustedResult) <= Math.floor(maxResponseBytes)) {
       best = mid;
@@ -87,7 +81,7 @@ export function truncateHoverToolCallResult(
   if (best >= 0 && best < codepoints.length) truncated = true;
   if (best >= 0) {
     nextContents = nextContents.slice(0);
-    nextContents[lastIndex] = { ...last, value: bestValue };
+    nextContents[lastIndex] = { kind: last.kind, value: bestValue };
     candidate = buildResult(result, rec, nextContents, truncated);
   }
 

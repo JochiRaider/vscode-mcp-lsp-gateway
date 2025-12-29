@@ -1,20 +1,33 @@
 // src/tools/handlers/hover.ts
 //
-// vscode.lsp.hover (v1) — stub
+// vscode.lsp.hover (v1)
 // - Ajv input validation via SchemaRegistry (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
-// - Always returns deterministic PROVIDER_UNAVAILABLE until implemented
+// - Executes VS Code's hover provider and normalizes contents deterministically
+// - Stable range selection and deterministic content ordering
 
+import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import type { SchemaRegistry } from '../schemaRegistry.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
-import { unimplementedToolError } from './_unimplemented.js';
 
 const TOOL_NAME = 'vscode.lsp.hover' as const;
+const E_INVALID_PARAMS = -32602;
+const E_INTERNAL = -32603;
+
+type ContractPosition = Readonly<{ line: number; character: number }>;
+type ContractRange = Readonly<{ start: ContractPosition; end: ContractPosition }>;
+type HoverContent = Readonly<{ kind: 'markdown' | 'plaintext'; value: string }>;
 
 export type ToolResult =
-  | Readonly<{ ok: true; result: unknown }>
+  | Readonly<{ ok: true; result: HoverOutput }>
   | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
+
+type HoverOutput = Readonly<{
+  contents: readonly HoverContent[];
+  range?: ContractRange;
+  summary?: string;
+}>;
 
 export type HoverDeps = Readonly<{
   schemaRegistry: SchemaRegistry;
@@ -26,7 +39,24 @@ export async function handleHover(args: unknown, deps: HoverDeps): Promise<ToolR
   const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
   if (!validated.ok) return { ok: false, error: validated.error };
 
-  const v = validated.value as Readonly<{ uri: string }>;
+  const v = validated.value as Readonly<{
+    uri: string;
+    position: Readonly<{ line: number; character: number }>;
+  }>;
+
+  const line = normalizeNonNegativeInt(v.position?.line);
+  const character = normalizeNonNegativeInt(v.position?.character);
+  if (line === undefined || character === undefined) {
+    return {
+      ok: false,
+      error: toolError(
+        E_INVALID_PARAMS,
+        'MCP_LSP_GATEWAY/INVALID_PARAMS',
+        'position must be non-negative integers',
+      ),
+    };
+  }
+
   const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
     ok: false as const,
     code: 'MCP_LSP_GATEWAY/URI_INVALID' as const,
@@ -34,7 +64,35 @@ export async function handleHover(args: unknown, deps: HoverDeps): Promise<ToolR
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
-  return { ok: false, error: unimplementedToolError({ tool: TOOL_NAME }) };
+  const docUri = vscode.Uri.parse(gated.value.uri, true);
+  const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
+  if (!doc) {
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
+  }
+
+  let raw: unknown;
+  try {
+    raw = await vscode.commands.executeCommand(
+      'vscode.executeHoverProvider',
+      doc.uri,
+      new vscode.Position(line, character),
+    );
+  } catch {
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+  }
+
+  const hovers = normalizeHoverArray(raw);
+  const contents = normalizeHoverContents(hovers);
+  const range = pickStableRange(hovers);
+
+  const summary = contents.length > 0 ? 'Hover available.' : 'No hover available.';
+  const result: HoverOutput = {
+    contents,
+    ...(range ? { range } : undefined),
+    summary,
+  };
+
+  return { ok: true, result };
 }
 
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
@@ -43,4 +101,147 @@ function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
     message: 'Invalid params',
     data: { code },
   };
+}
+
+function toolError(
+  jsonRpcCode: number,
+  code: string,
+  message?: string,
+  details?: Record<string, unknown>,
+): JsonRpcErrorObject {
+  const data: Record<string, unknown> = { code };
+  if (typeof message === 'string' && message.trim().length > 0) data.message = message.trim();
+  if (details && Object.keys(details).length > 0) data.details = details;
+
+  return {
+    code: jsonRpcCode,
+    message: jsonRpcCode === E_INVALID_PARAMS ? 'Invalid params' : 'Internal error',
+    data,
+  };
+}
+
+async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocument> {
+  const asString = uri.toString();
+  const existing = vscode.workspace.textDocuments.find((d) => d.uri.toString() === asString);
+  if (existing) return existing;
+  return await vscode.workspace.openTextDocument(uri);
+}
+
+function normalizeNonNegativeInt(v: unknown): number | undefined {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
+  if (!Number.isInteger(v)) return undefined;
+  if (v < 0) return undefined;
+  return v;
+}
+
+function normalizeHoverArray(raw: unknown): vscode.Hover[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is vscode.Hover => item instanceof vscode.Hover);
+  }
+  return raw instanceof vscode.Hover ? [raw] : [];
+}
+
+export function normalizeHoverContents(hovers: readonly vscode.Hover[]): HoverContent[] {
+  const out: HoverContent[] = [];
+  for (const hover of hovers) {
+    const items = normalizeToArray(hover.contents);
+    for (const item of items) {
+      const normalized = normalizeHoverContentItem(item);
+      if (normalized) out.push(normalized);
+    }
+  }
+
+  return sortHoverContents(out);
+}
+
+function normalizeHoverContentItem(item: unknown): HoverContent | undefined {
+  if (item instanceof vscode.MarkdownString) {
+    return { kind: 'markdown', value: String(item.value ?? '') };
+  }
+
+  if (typeof item === 'string') {
+    return { kind: 'markdown', value: item };
+  }
+
+  if (isMarkupContent(item)) {
+    return { kind: item.kind === 'plaintext' ? 'plaintext' : 'markdown', value: item.value };
+  }
+
+  if (isMarkedStringObject(item)) {
+    return { kind: 'markdown', value: formatMarkedString(item.language, item.value) };
+  }
+
+  return undefined;
+}
+
+function isMarkupContent(
+  item: unknown,
+): item is Readonly<{ kind: 'markdown' | 'plaintext'; value: string }> {
+  if (!item || typeof item !== 'object') return false;
+  const rec = item as Record<string, unknown>;
+  if (rec.kind !== 'markdown' && rec.kind !== 'plaintext') return false;
+  return typeof rec.value === 'string';
+}
+
+function isMarkedStringObject(
+  item: unknown,
+): item is Readonly<{ language: string; value: string }> {
+  if (!item || typeof item !== 'object') return false;
+  const rec = item as Record<string, unknown>;
+  return typeof rec.language === 'string' && typeof rec.value === 'string';
+}
+
+function formatMarkedString(language: string, value: string): string {
+  const lang = language.trim();
+  if (!lang) return value;
+  return `\`\`\`${lang}\n${value}\n\`\`\``;
+}
+
+function sortHoverContents(contents: HoverContent[]): HoverContent[] {
+  return contents.slice().sort(compareHoverContents);
+}
+
+function compareHoverContents(a: HoverContent, b: HoverContent): number {
+  if (a.kind !== b.kind) return compareString(a.kind, b.kind);
+  return compareString(a.value, b.value);
+}
+
+function compareString(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
+function normalizeToArray(raw: unknown): unknown[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  return [raw];
+}
+
+export function pickStableRange(hovers: readonly vscode.Hover[]): ContractRange | undefined {
+  let best: ContractRange | undefined;
+  for (const hover of hovers) {
+    if (!(hover.range instanceof vscode.Range)) continue;
+    const candidate = toContractRange(hover.range);
+    if (!best || compareRange(candidate, best) < 0) best = candidate;
+  }
+  return best;
+}
+
+function toContractRange(range: vscode.Range): ContractRange {
+  return {
+    start: { line: range.start.line, character: range.start.character },
+    end: { line: range.end.line, character: range.end.character },
+  };
+}
+
+function compareRange(a: ContractRange, b: ContractRange): number {
+  const start = comparePosition(a.start, b.start);
+  if (start !== 0) return start;
+  return comparePosition(a.end, b.end);
+}
+
+function comparePosition(a: ContractPosition, b: ContractPosition): number {
+  if (a.line !== b.line) return a.line - b.line;
+  return a.character - b.character;
 }

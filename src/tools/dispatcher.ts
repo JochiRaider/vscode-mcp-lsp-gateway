@@ -85,6 +85,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     return await handleReferences(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      maxItemsPerPage: deps.maxItemsPerPage,
     });
   },
 
@@ -106,6 +107,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     return await handleWorkspaceSymbols(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      maxItemsPerPage: deps.maxItemsPerPage,
     });
   },
 
@@ -120,6 +122,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     return await handleDiagnosticsWorkspace(args, {
       schemaRegistry: deps.schemaRegistry,
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      maxItemsPerPage: deps.maxItemsPerPage,
     });
   },
 } as const;
