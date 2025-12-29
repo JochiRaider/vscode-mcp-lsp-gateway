@@ -182,6 +182,10 @@ If an error occurs while processing a JSON-RPC request that has an `id`:
 
 - Return a JSON-RPC error object in the response body (still `200 OK`).
 
+For MCP methods (including `tools/list` and `tools/call`), the JSON-RPC `result` payload MUST follow this repo’s
+contract. In particular, successful `tools/call` responses return tool payloads in `result.structuredContent`
+(see `docs/CONTRACT.md` §3.0).
+
 ### 6.3 HTTP-layer errors (no JSON-RPC body)
 
 Use HTTP errors when the server cannot or will not accept/process the message at the transport/security layer:
@@ -264,6 +268,30 @@ HTTP response:
 
 - `202 Accepted`
 - no body
+
+### 8.3 JSON-RPC request (`tools/call`, structuredContent-first)
+
+HTTP request:
+
+- `POST /mcp`
+- `Authorization: Bearer …`
+- `Content-Type: application/json`
+- `Accept: application/json, text/event-stream`
+- (Post-init) `MCP-Protocol-Version: 2025-11-25`
+- (Post-init, if sessions enabled) `MCP-Session-Id: ...`
+
+Body (single JSON-RPC object):
+
+- `{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"vscode.lsp.definition","arguments":{...}}}`
+
+HTTP response:
+
+- `200 OK`
+- `Content-Type: application/json`
+
+Body (tool payload is in `result.structuredContent`; `content` is optional and MUST NOT duplicate JSON):
+
+- `{"jsonrpc":"2.0","id":"2","result":{"isError":false,"structuredContent":{...},"content":[]}}`
 
 ---
 

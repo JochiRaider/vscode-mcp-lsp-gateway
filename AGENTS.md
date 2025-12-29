@@ -1,9 +1,22 @@
-# AGENTS.md
+# AGENTS.md — mcp-lsp-gateway
 
-## Purpose
+This repository is a **VS Code extension** that embeds a **local-only MCP server** in the VS Code extension host and exposes a **minimal, read-only, LSP-like tool surface** over **MCP Streamable HTTP (Protocol 2025-11-25)** for **GPT-5.2-Codex** consumption (no MCP backwards compatibility).
 
-- Build a local-only MCP server inside the VS Code extension host that exposes a minimal, read-only, deterministic tool surface over Streamable HTTP.
-- Keep the v1 tool catalog stable and bounded:
+The project is intentionally **contract-first**: behavior is defined by `docs/PROTOCOL.md`, `docs/CONTRACT.md`, `docs/SECURITY.md`, and `docs/SCHEMA.md`. Code, schemas, and tests must track those documents exactly.
+
+## Purpose and scope (this file)
+- Applies repo-wide unless a more specific `AGENTS.md` / `AGENTS.override.md` exists in a subdirectory.
+- Written for automated coding agents and human contributors.
+- When in doubt: **fail closed**, prefer **minimal diffs**, and verify behavior against code + tests.
+
+---
+
+## Non-negotiables (v1)
+
+### Scope
+- **Read-only only**: no edits, no rename, no apply-edits, no write-capable code actions, no arbitrary command execution.
+- **Protocol**: MCP **Streamable HTTP** for **Protocol Revision `2025-11-25` only** (no backward compatibility).
+- **Tool catalog is fixed** (v1):
   - `vscode.lsp.definition`
   - `vscode.lsp.references` (paged)
   - `vscode.lsp.hover`
@@ -11,114 +24,179 @@
   - `vscode.lsp.workspaceSymbols` (paged)
   - `vscode.lsp.diagnostics.document`
   - `vscode.lsp.diagnostics.workspace` (paged)
-- Security-by-default is mandatory: localhost bind, bearer auth on every request, Origin allowlist when present, workspace/URI gating (inputs and outputs), no outbound network calls.
-- Success for any change: contracts/schemas/tests updated together, determinism preserved, and no trust boundary expansion.
 
-## Quickstart
+### Security (fail-closed)
+- **Localhost-only bind**: must bind to `127.0.0.1` in v1; refuse to start otherwise.
+- **Fail closed on missing auth material**: if no bearer tokens are configured in SecretStorage, the server must not start (see `docs/SECURITY.md`).
+- **Auth on every request**: `Authorization: Bearer <token>` required for all calls, including `initialize`.
+- **Origin allowlist**: if `Origin` is present and not allowlisted, reject.
+- **Workspace/URI gating on inputs and outputs**:
+  - allow only `file:` URIs
+  - allow only paths under workspace roots plus explicitly configured additional roots
+  - filter provider outputs so nothing outside allowed roots is returned
+- **No outbound networking**: do not add `fetch`/`http(s)` clients/WebSockets/etc.
+- **No secret leakage**: never log tokens, session IDs, raw bodies, or out-of-root paths; redact in debug logs.
 
-- Install deps: `npm ci`
-- Build: `npm run build`
-- Run unit tests: `npm run test:unit`
-- Run full test suite: `npm test` (build + unit + integration)
+### Runtime environment (WSL2 / Remote Development)
+- This extension is a **workspace extension** (`extensionKind: ["workspace"]`), so when you open a folder in **Remote-WSL**, the extension (and the embedded HTTP server) runs **inside the WSL remote extension host**, not in the Windows UI extension host.
+- **“Local-only / 127.0.0.1” is local to the extension host.** In common Windows 11 + WSL2 setups, Windows applications can still reach WSL2 services via `http://127.0.0.1:<port>`; if not, use the WSL instance IP as documented by Microsoft.
+- `additionalAllowedRoots` must use **absolute paths as seen by the extension host**:
+  - Remote-WSL: Linux paths (e.g., `/home/...`, `/mnt/c/...`)
+  - Local Windows workspace: Windows paths (e.g., `C:\\...`)
+
+### Determinism + hard bounds
+- Canonicalize inputs; stable sort + dedupe all output lists.
+- Cursor paging must be stable and derived from canonical sorted full result sets.
+- Enforce hard caps (bytes/items/total-set caps/timeouts). **No nondeterministic partial results**—return deterministic errors instead.
+- Tool outputs are **structuredContent-first**:
+  - `structuredContent` is the canonical machine payload.
+  - To reduce token usage, the `content` array should be empty or contain only a minimal, non-sensitive text summary.
+  - Do not serialize full JSON results into `content` for legacy MCP clients (out of scope for v1).
+
+---
+
+## How to validate (local dev)
+
+### Install and build
+- Install dependencies:
+  - If `package-lock.json` exists: `npm ci`
+  - Otherwise: `npm install` (required before `npm ci` can work)
+- Typecheck: `npm run check-types`
+- Build extension bundle: `npm run compile`
+- Watch (tsc + esbuild): `npm run watch`
+
+### Quality gates
 - Lint: `npm run lint`
-- Package: `npm run package` (builds a `.vsix`)
+- Format check: `npm run format:check`
+- Format write: `npm run format`
 
-## Golden commands
+### Tests
+- Full test run (uses VS Code test runner): `npm test`
 
-- Install: `npm ci`
-- Build: `npm run build`
-- Watch: `npm run watch`
-- Unit tests: `npm run test:unit`
-- Integration tests: `npm run test:integration`
-- Full tests: `npm test`
-- Lint: `npm run lint`
-- Package VSIX: `npm run package`
+Notes:
+- Root `tsconfig.json` is scoped to `src/**`; test compilation is separate (`npm run compile-tests`).
 
-## Repo map
+### Packaging
+- Production bundle: `npm run package`
+- Create VSIX: `npm run package:vsix`
 
-- `docs/PROTOCOL.md` — Streamable HTTP transport contract (MCP 2025-11-25): headers, status codes, lifecycle.
-- `docs/CONTRACT.md` — tool catalog, determinism rules, paging, caps/timeouts, error taxonomy.
-- `docs/SECURITY.md` — threat model + enforced controls (auth/origin/roots/redaction/no outbound net).
-- `schemas/` — per-tool input JSON Schemas (Ajv-validated; output schemas may be added later).
-- `src/` — VS Code extension + local HTTP server + tool handlers.
-- `test/` — unit + integration tests.
-- `dist/` — compiled extension output (generated).
+---
 
-## Contract-first workflow (non-negotiable)
+## Running the extension (manual verification)
 
-- If you add/rename/modify a tool:
-  - Update `docs/CONTRACT.md`
-  - Update the tool schemas under `schemas/`
-  - Update tests that assert the exact catalog and output shapes
-- If you change transport/lifecycle/header behavior:
-  - Update `docs/PROTOCOL.md`
-  - Update protocol-level tests (smoke harness + any integration tests)
-- If you change security controls or trust boundaries:
-  - Update `docs/SECURITY.md`
-  - Add/adjust tests proving security invariants still hold
-- Do not introduce “helpful” undocumented behaviors. If it is not in the contract, it is out of scope for v1.
+1. Launch the Extension Development Host (VS Code “Run Extension” flow).
+2. Configure/enable the server:
+   - Set `mcpLspGateway.enabled` to `true` (default is `false`).
+3. Set bearer tokens (stored in SecretStorage; never in settings):
+   - Run command: **“MCP LSP Gateway: Set Bearer Token(s)”**
+4. Copy the endpoint URL:
+   - Run command: **“MCP LSP Gateway: Copy MCP Endpoint URL”**
+5. Verify protocol behavior against `docs/PROTOCOL.md` (headers, status codes, init lifecycle).
 
-## Lifecycle and protocol invariants
+If workspace is in Restricted Mode (untrusted), the server must not run.
 
-- Single endpoint: `POST /mcp` only (v1 may return `405` for `GET`).
-- Each HTTP POST body is exactly one JSON-RPC object (no batch arrays).
-- Accept/Content-Type requirements and HTTP status behaviors are defined in `docs/PROTOCOL.md` and must be implemented fail-closed.
-- Initialization flow must follow the protocol contract:
-  - `initialize` (request) → JSON-RPC response
-  - `notifications/initialized` (notification) → `202 Accepted`
-  - Post-init header enforcement and session enforcement per `docs/PROTOCOL.md`
+---
 
-## Security guardrails (do not weaken)
+## Configuration keys (do not invent new ones without updating docs/tests)
 
-- Local-only bind:
-  - Must bind to `127.0.0.1` in v1. Refuse to start if configured otherwise.
-- Auth on every request:
-  - Require `Authorization: Bearer <token>` for all calls, including `initialize`.
-  - Sessions are not authorization.
-  - Token checks must be constant-time. Support token rotation by accepting multiple valid tokens.
-- Origin validation:
-  - If `Origin` is present and not allowlisted, reject.
-- Workspace/URI gating on inputs and outputs:
-  - Only allow `file:` URIs.
-  - Allow only paths within workspace folders plus explicitly configured additional roots.
-  - Filter provider outputs so nothing outside allowed roots is returned.
-- No outbound network calls:
-  - Do not add `fetch`/`http`/`https`/WebSocket client usage.
-- Read-only enforcement:
-  - No edits, renames, apply-edits, or general codeActions surface in v1.
+Primary settings (machine-scoped):
+- `mcpLspGateway.enabled` (default `false`)
+- `mcpLspGateway.bindAddress` (v1 enum: `127.0.0.1`)
+- `mcpLspGateway.port` (default `3939`)
+- `mcpLspGateway.endpointPath` (v1 enum: `/mcp`)
+- `mcpLspGateway.allowedOrigins` (Origin allowlist; empty by default)
+- `mcpLspGateway.additionalAllowedRoots` (absolute paths; empty by default)
+- `mcpLspGateway.enableSessions` (default `true`; sessions are not auth)
+- `mcpLspGateway.maxItemsPerPage` (default/max `200`)
+- `mcpLspGateway.maxResponseBytes` (default/max `524288`)
+- `mcpLspGateway.requestTimeoutMs` (default/max `2000`)
+- `mcpLspGateway.debugLogging` (default `false`)
+- `mcpLspGateway.secretStorageKey` (default `mcpLspGateway.authTokens`; tokens must remain in SecretStorage)
 
-## Determinism and bounds (must be enforced in code)
+---
 
-- Canonicalize all inputs (URIs, numeric fields, strings) before execution.
-- Stable sort all output arrays by the keys defined in `docs/CONTRACT.md`.
-- Deterministically dedupe before paging.
-- Cursor paging must be stable and derived from the canonical sorted full result set.
-- Enforce hard caps and timeouts from `docs/CONTRACT.md` independent of client preferences.
-- If you cannot compute the canonical result set within caps/timeouts, return deterministic errors (never nondeterministic partial results).
+## Repo map (authoritative docs first)
 
-## Validation and logging rules
+- `docs/PROTOCOL.md` — Streamable HTTP transport + lifecycle (headers/status codes/init rules)
+- `docs/CONTRACT.md` — tool catalog, canonicalization, ordering, paging, caps/timeouts, error taxonomy
+- `docs/SECURITY.md` — threat model + enforced controls and invariants
+- `docs/SCHEMA.md` - JSON Schemas for tool inputs and outputs, conventions, and change workflow
+- `schemas/` — Ajv-validated input schemas (reject unknown fields; `additionalProperties: false`)
+- `src/` — VS Code extension + embedded local HTTP server + tool handlers
+- `test/` — unit/integration tests (must assert catalog + determinism + security invariants)
+- `dist/` — build output (generated)
 
-- Validation:
-  - Ajv validates tool inputs against JSON Schemas.
-  - Output shapes are defined in `docs/CONTRACT.md`; output schemas may be added later.
-  - Transport and JSON-RPC envelope handling must fail closed (do not accept ambiguous shapes).
-- Logging:
-  - Default logs must not contain bearer tokens, session IDs, raw request bodies, or out-of-root paths.
-  - Debug logging must be opt-in and redact Authorization and session headers; keep logs bounded/truncated.
+### Implementation anchors (read before changing contracts)
+- `src/server/router.ts` — HTTP-layer validation (method/path/origin/auth/media-types/request caps)
+- `src/server/auth.ts` — bearer token verification (SecretStorage-backed, constant-time compare)
+- `src/mcp/jsonrpc.ts` — strict single-message JSON-RPC parsing/validation (no batches)
+- `src/mcp/handler.ts` — init lifecycle + post-init header enforcement + tool routing entrypoint
+- `src/workspace/roots.ts`, `src/workspace/uri.ts` — allowed-roots computation + URI canonicalization/gating
+- `src/tools/catalog.ts` — `tools/list` surface and v1 catalog stability
+- `src/tools/schemaRegistry.ts` + `schemas/tools/**` — Ajv input validation (reject unknown fields)
+- `src/tools/dispatcher.ts` + `src/tools/handlers/**` — allowlist tool dispatch + per-tool behavior
+- `src/util/stableStringify.ts` — canonical JSON for deterministic dedupe
 
-## Development discipline
+---
 
-- Keep diffs minimal and reversible; avoid cross-cutting refactors unless the contract requires it.
-- Implement one tool handler at a time; do not broaden surfaces opportunistically.
-- When touching paging/cursors, add unit tests for:
-  - canonicalization
-  - stable sorting
-  - deduplication
-  - cursor stability across repeated calls
+## Contract-first change workflow (must follow)
 
-## If instructions are missing or unclear
+### If you add/rename/modify a tool
+- Update **`docs/CONTRACT.md`**
+- Update **`schemas/`** for the tool input schema
+- Update tests that assert:
+  - exact tool catalog (`tools/list`)
+  - output shape stability
+  - determinism (sort/dedupe/paging)
+  - bounds and error codes
 
-- Search the repo for precedent and follow existing patterns (especially canonicalization, filtering, paging).
-- Consult `docs/CONTRACT.md` and the corresponding schema under `schemas/` before making assumptions.
-- If still blocked, add a `TODO(verify): ...` marker and choose a safe, fail-closed behavior.
-- Never invent scripts, paths, settings keys, or capabilities. Verify via repo search before documenting.
+### If you change transport / headers / lifecycle
+- Update **`docs/PROTOCOL.md`**
+- Update protocol-level tests (including init sequence and post-init header enforcement)
+
+### If you touch security controls / trust boundaries
+- Update **`docs/SECURITY.md`**
+- Add/adjust tests proving invariants still hold (auth, roots, origin behavior, logging hygiene)
+
+If it is not in the contract, it is out of scope for v1.
+
+---
+
+## Implementation discipline (how to work safely)
+
+- Prefer small, reversible diffs. Avoid cross-cutting refactors unless contract-driven.
+- Enforce “allowlist routing” for tool invocation (only the documented tools).
+- Keep module semantics consistent with the repo’s ESM + NodeNext setup:
+  - Use ESM imports/exports (no CJS `require`).
+  - Preserve relative import specifiers with `.js` extensions where used.
+  - Prefer `node:`-prefixed built-in imports.  
+- Never “helpfully” accept ambiguous input shapes:
+  - JSON-RPC envelope must be strict
+  - input schemas must be strict
+  - protocol must fail closed
+- When changing paging/cursors, add tests for:
+  - canonicalization → stable sort → dedupe → stable cursor slicing
+  - cursor rejection on mismatch / decode errors
+- Logging must remain safe-by-default:
+  - redact auth/session headers
+  - do not log raw request bodies
+  - truncate deterministically
+
+---
+
+## Planning gate (ExecPlan)
+Before making broad/risky changes (multi-tool refactors, cursor algorithm changes, security boundary changes, or large doc/schema rewrites),
+write a short plan and keep it updated as you implement:
+- Goal + non-goals
+- Files/areas in scope
+- Step sequence
+- Risks + rollback/exit criteria
+- Test/validation plan
+
+---
+
+## When instructions are unclear
+1. Treat `docs/PROTOCOL.md`, `docs/CONTRACT.md`, and `docs/SECURITY.md` as the source of truth.
+2. Search for existing precedent in `src/` and `test/` and follow established patterns (canonicalization/filtering/paging).
+3. If still blocked, choose a **safe, fail-closed behavior** and leave a `TODO(verify): ...` marker tied to a specific file/line.
+4. Do not invent scripts, settings keys, tool names, or capability claims—verify in-repo before documenting.

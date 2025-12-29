@@ -86,15 +86,51 @@ In `tools/list`, each returned tool entry MUST include:
 
 ## 3. Common data model
 
-All tool outputs are JSON objects with a machine-readable primary payload and (optionally) a short summary string.
+This contract defines **tool payload objects** (the machine-readable outputs for each tool) and how they are returned
+over MCP `tools/call`.
 
-### 3.1 Canonical URI
+### 3.0 MCP `tools/call` result envelope (normative)
+
+For a successful `tools/call`, the JSON-RPC response `result` MUST be an MCP tool result envelope:
+
+```json
+{
+  "isError": false,
+  "structuredContent": { /* tool payload object (see §7) */ },
+  "content": []
+}
+```
+
+Rules (v1):
+
+- **StructuredContent-first**:
+  - The canonical machine payload MUST be returned in `result.structuredContent`.
+  - The tool payload object placed in `structuredContent` MUST conform to the per-tool outputs documented in §7.
+
+- **No back-compat text JSON (token-minimizing)**:
+  - The server MUST NOT serialize or duplicate the full tool payload JSON into `result.content`.
+  - Clients MUST parse `structuredContent` for automation and MUST treat `content` as optional, human-oriented text.
+
+- **`content` policy**:
+  - `content` MAY be empty (`[]`).
+  - If present, `content` MUST contain only short, non-sensitive text (for example a one-line summary), and MUST NOT
+    include secrets, raw request bodies, or filesystem paths outside allowed roots.
+
+- **Errors**:
+  - Tool failures are returned as JSON-RPC `error` objects per §6 (not as `result.isError: true`) in v1.
+
+### 3.1 Tool payload summary
+
+Tool payload objects MAY include a `summary` string for human readability.
+If present, `summary` MUST be short, stable, and non-sensitive (no secrets; no out-of-root paths).
+
+### 3.2 Canonical URI
 
 - All URIs MUST be returned in canonical form.
 - Only `file:` URIs are returned.
 - Any non-allowed URI MUST be omitted (filtered) rather than partially redacted.
 
-### 3.2 Position and Range
+### 3.3 Position and Range
 
 All positions and ranges follow LSP conventions:
 
@@ -111,7 +147,7 @@ All positions and ranges follow LSP conventions:
 }
 ```
 
-### 3.3 Location
+### 3.4 Location
 
 ```json
 {
@@ -120,7 +156,7 @@ All positions and ranges follow LSP conventions:
 }
 ```
 
-### 3.4 Paging envelope
+### 3.5 Paging envelope
 
 Paged tools return a stable cursor.
 
@@ -137,7 +173,7 @@ Paged tools return a stable cursor.
 - Cursor format is opaque to the client.
 - Cursor MUST be derived deterministically from the canonical sorted full result set for the specific tool + canonicalized input.
 
-### 3.5 Cursor algorithm (normative)
+### 3.6 Cursor algorithm (normative)
 
 All paged tools MUST use the same cursor structure:
 
@@ -167,7 +203,7 @@ Paging:
 - `nextCursor` is:
   - `null` if `o + pageSize >= full.length`, else a new cursor with `o = o + pageSize` and the same `k`.
 
-### 3.6 Stable identifiers (when needed)
+### 3.7 Stable identifiers (when needed)
 
 If an `id` is returned (symbols, diagnostics), it MUST be:
 
@@ -337,7 +373,11 @@ The server MUST NOT include secrets, raw request bodies, or filesystem paths out
 
 ## 7. Tool catalog (v1)
 
-All tools accept `input` consistent with their per-tool JSON Schemas in `schemas/tools/<toolname>.json`. Output shapes are defined normatively in this contract (and may be backed by output schemas in a later step).
+All tools accept `input` consistent with their per-tool JSON Schemas in `schemas/tools/<toolname>.json`.
+
+**Important (structuredContent-first):**
+- The “Output” blocks in §7 define the **tool payload object** that MUST appear in `result.structuredContent` for a successful `tools/call` (see §3.0).
+- The server MUST NOT duplicate that JSON object into `result.content`.
 
 ### 7.1 `vscode.lsp.definition`
 

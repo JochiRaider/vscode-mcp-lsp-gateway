@@ -4,6 +4,8 @@ This document is the **authoritative security contract** for `vscode-mcp-lsp-gat
 
 The server runs **inside the VS Code extension host** and exposes a **local-only** MCP endpoint over **Streamable HTTP**. The tool surface is **read-only** and intentionally minimal.
 
+This project is **structuredContent-first** and explicitly does **not** support MCP backwards compatibility behaviors that increase payload size or ambiguity.
+
 See also:
 
 - Transport contract: `docs/PROTOCOL.md`
@@ -18,7 +20,8 @@ See also:
 3. Minimize attack surface (single endpoint, POST-only, strict schemas, no write tools).
 4. Be deterministic and bounded to reduce DoS risk and eliminate nondeterministic partial leakage.
 5. Avoid secret leakage in logs, error messages, and diagnostics payloads.
-
+6. Keep outputs minimal by default (token and accidental leakage minimization).
+   
 ---
 
 ## 2. Trust boundaries and assets
@@ -34,8 +37,20 @@ See also:
 ### 2.2 Trust boundaries
 
 - Inside boundary: VS Code extension host process, VS Code language feature stack.
-- Local boundary: HTTP requests to `127.0.0.1` only.
+- Local boundary: HTTP requests to `127.0.0.1` only (local to the extension host runtime).
 - Outside boundary: any other local process, browser context, or untrusted extension attempting to call the endpoint.
+
+### 2.3 Runtime environments (Local VS Code vs Remote-WSL)
+
+This extension is a **workspace extension** and may run in a remote extension host.
+
+- **Local workspace (Windows VS Code):** the server runs on Windows; `127.0.0.1` is Windows loopback.
+- **Remote-WSL workspace:** the server runs inside the WSL2 environment; `127.0.0.1` is WSL loopback.
+  - In common Windows 11 + WSL2 configurations, Windows processes can still reach WSL2 services via `http://127.0.0.1:<port>`.
+  - If localhost forwarding is not available in a given setup, treat this as an operational incompatibility rather than relaxing bind rules.
+
+Security impact:
+- “Local-only” means “local to the machine running the extension host.” In Remote-WSL, that includes both Windows host processes and WSL processes as “local attackers.”
 
 ---
 
@@ -47,9 +62,16 @@ This threat model assumes:
 - Attackers may include:
   - malware on the workstation
   - an untrusted local process
-  - a web page using the browser to issue requests to localhost (DNS rebinding, CSRF-like patterns)
+  - a web page using the browser to attempt requests to localhost (DNS rebinding, CSRF-like patterns)
   - a different VS Code extension attempting to call the endpoint
   - a compromised or misconfigured client that sends oversized or malformed requests
+
+Notes:
+- v1 does not target browser-based clients. The combination of:
+  - mandatory `Authorization: Bearer ...` and
+  - strict method allowlist (POST-only)
+  will typically prevent browsers from successfully issuing authenticated requests due to preflight behavior.
+  Origin validation remains defense-in-depth against localhost attack patterns.
 
 ### 3.1 Threats (STRIDE-style)
 
@@ -122,6 +144,10 @@ Notes:
 
 - The extension SHOULD provide an interactive flow to set or rotate tokens.
 - TODO(verify): document the exact command(s) or UI entrypoint used to set tokens once implemented.
+- The extension provides interactive commands to manage tokens:
+  - **“MCP LSP Gateway: Set Bearer Token(s)”**
+  - **“MCP LSP Gateway: Clear Bearer Token(s)”**
+- Tokens SHOULD be high-entropy (for example, 32+ random bytes encoded as base64url or hex).
 
 Mitigates: secret leakage and accidental repository check-in.
 
@@ -134,6 +160,11 @@ Mitigates: secret leakage and accidental repository check-in.
 This is explicitly designed to reduce risk of browser-based localhost attacks while not relying on CORS as a security boundary.
 
 Mitigates: browser-driven CSRF-like access to localhost endpoint, DNS rebinding exploitation.
+
+Notes:
+- v1 does not implement CORS as an access mechanism and does not treat CORS as a security boundary.
+- Allowlist matching is intended to be exact and conservative (no wildcards, no normalization).
+- Origin validation is defense-in-depth. The primary authorization control remains the bearer token.
 
 ### 4.5 Protocol hardening (fail closed)
 
@@ -224,7 +255,13 @@ Mitigates: denial of service, resource exhaustion, nondeterministic leakage.
 
 Mitigates: information disclosure.
 
-### 4.11 Error message hygiene
+### 4.11 Output minimization (token and leakage control)
+
+- Tool responses MUST be structuredContent-first.
+- Human-readable summaries (if any) MUST be short, optional, and MUST NOT include secrets.
+- The implementation MUST NOT return whole-file contents or large unbounded blobs via hover/diagnostics; any provider text is implicitly constrained by response caps.
+
+### 4.12 Error message hygiene
 
 - Errors MUST NOT include secrets, raw payloads, or out-of-root paths.
 - Stack traces MUST NOT be returned to clients.
@@ -232,7 +269,7 @@ Mitigates: information disclosure.
 
 Mitigates: information disclosure.
 
-### 4.12 No outbound network calls
+### 4.13 No outbound network calls
 
 - The implementation MUST NOT perform outbound network calls (no `fetch`, no `http(s)` client, no WebSockets).
 - All operations MUST be local and use VS Code APIs only.
@@ -257,6 +294,9 @@ Client guidance:
 
 - If any client runs in a browser-like environment, set `allowedOrigins` to the expected origin(s).
 - If you do not use browser-based clients, you may leave the allowlist empty; requests with an Origin header will be rejected unless explicitly allowed.
+
+Note:
+- Browser-based clients are out of scope for v1. Origin allowlisting is retained as a defense-in-depth control against browser-originated localhost attack attempts, not as a supported access path.
 
 ### 5.3 Additional allowed roots
 
@@ -298,3 +338,20 @@ Security-related changes MUST:
 - remain fail-closed by default
 
 Any proposal to weaken defaults (for example, non-local bind, unauthenticated mode, broader roots, starting in untrusted workspaces) is out of scope for v1 and requires an explicit opt-in design change with an updated threat model and tests.
+
+---
+
+## Appendix A. Defense-in-depth recommendations (not required by the v1 contract)
+
+These items are widely used to harden localhost services, but are not declared as v1 requirements unless implemented and tested.
+
+1. Host header allowlist (DNS rebinding hardening)
+   - Validate `Host` against a strict allowlist (for example, `127.0.0.1`, `localhost`).
+   - This reduces exposure to DNS rebinding patterns that pivot browsers into targeting localhost services.
+
+2. Deterministic concurrency limiting
+   - Enforce a small max in-flight request limit (global or per-session).
+   - On overflow, return a deterministic error (for example, 429 or a stable JSON-RPC error), rather than queueing unbounded work.
+
+3. Optional “strict Origin required” mode
+   - For environments where all legitimate clients can send an `Origin` header, add an opt-in mode that rejects missing Origin.
