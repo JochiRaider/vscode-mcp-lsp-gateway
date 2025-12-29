@@ -97,7 +97,9 @@ For a successful `tools/call`, the JSON-RPC response `result` MUST be an MCP too
 ```json
 {
   "isError": false,
-  "structuredContent": { /* tool payload object (see §7) */ },
+  "structuredContent": {
+    /* tool payload object (see §7) */
+  },
   "content": []
 }
 ```
@@ -377,6 +379,7 @@ The server MUST NOT include secrets, raw request bodies, or filesystem paths out
 All tools accept `input` consistent with their per-tool JSON Schemas in `schemas/tools/<toolname>.json`.
 
 **Important (structuredContent-first):**
+
 - The “Output” blocks in §7 define the **tool payload object** that MUST appear in `result.structuredContent` for a successful `tools/call` (see §3.0).
 - The server MUST NOT duplicate that JSON object into `result.content`.
 

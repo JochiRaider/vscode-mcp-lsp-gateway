@@ -5,6 +5,7 @@ This repository is a **VS Code extension** that embeds a **local-only MCP server
 The project is intentionally **contract-first**: behavior is defined by `docs/PROTOCOL.md`, `docs/CONTRACT.md`, `docs/SECURITY.md`, and `docs/SCHEMA.md`. Code, schemas, and tests must track those documents exactly.
 
 ## Purpose and scope (this file)
+
 - Applies repo-wide unless a more specific `AGENTS.md` / `AGENTS.override.md` exists in a subdirectory.
 - Written for automated coding agents and human contributors.
 - When in doubt: **fail closed**, prefer **minimal diffs**, and verify behavior against code + tests.
@@ -14,6 +15,7 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 ## Non-negotiables (v1)
 
 ### Scope
+
 - **Read-only only**: no edits, no rename, no apply-edits, no write-capable code actions, no arbitrary command execution.
 - **Protocol**: MCP **Streamable HTTP** for **Protocol Revision `2025-11-25` only** (no backward compatibility).
 - **Tool catalog is fixed** (v1):
@@ -26,6 +28,7 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
   - `vscode.lsp.diagnostics.workspace` (paged)
 
 ### Security (fail-closed)
+
 - **Localhost-only bind**: must bind to `127.0.0.1` in v1; refuse to start otherwise.
 - **Fail closed on missing auth material**: if no bearer tokens are configured in SecretStorage, the server must not start (see `docs/SECURITY.md`).
 - **Auth on every request**: `Authorization: Bearer <token>` required for all calls, including `initialize`.
@@ -38,6 +41,7 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 - **No secret leakage**: never log tokens, session IDs, raw bodies, or out-of-root paths; redact in debug logs.
 
 ### Runtime environment (WSL2 / Remote Development)
+
 - This extension is a **workspace extension** (`extensionKind: ["workspace"]`), so when you open a folder in **Remote-WSL**, the extension (and the embedded HTTP server) runs **inside the WSL remote extension host**, not in the Windows UI extension host.
 - **“Local-only / 127.0.0.1” is local to the extension host.** In common Windows 11 + WSL2 setups, Windows applications can still reach WSL2 services via `http://127.0.0.1:<port>`; if not, use the WSL instance IP as documented by Microsoft.
 - `additionalAllowedRoots` must use **absolute paths as seen by the extension host**:
@@ -45,6 +49,7 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
   - Local Windows workspace: Windows paths (e.g., `C:\\...`)
 
 ### Determinism + hard bounds
+
 - Canonicalize inputs; stable sort + dedupe all output lists.
 - Cursor paging must be stable and derived from canonical sorted full result sets.
 - Enforce hard caps (bytes/items/total-set caps/timeouts). **No nondeterministic partial results**—return deterministic errors instead.
@@ -58,6 +63,7 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 ## How to validate (local dev)
 
 ### Install and build
+
 - Install dependencies:
   - If `package-lock.json` exists: `npm ci`
   - Otherwise: `npm install` (required before `npm ci` can work)
@@ -66,17 +72,21 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 - Watch (tsc + esbuild): `npm run watch`
 
 ### Quality gates
+
 - Lint: `npm run lint`
 - Format check: `npm run format:check`
 - Format write: `npm run format`
 
 ### Tests
+
 - Full test run (uses VS Code test runner): `npm test`
 
 Notes:
+
 - Root `tsconfig.json` is scoped to `src/**`; test compilation is separate (`npm run compile-tests`).
 
 ### Packaging
+
 - Production bundle: `npm run package`
 - Create VSIX: `npm run package:vsix`
 
@@ -100,6 +110,7 @@ If workspace is in Restricted Mode (untrusted), the server must not run.
 ## Configuration keys (do not invent new ones without updating docs/tests)
 
 Primary settings (machine-scoped):
+
 - `mcpLspGateway.enabled` (default `false`)
 - `mcpLspGateway.bindAddress` (v1 enum: `127.0.0.1`)
 - `mcpLspGateway.port` (default `3939`)
@@ -127,6 +138,7 @@ Primary settings (machine-scoped):
 - `dist/` — build output (generated)
 
 ### Implementation anchors (read before changing contracts)
+
 - `src/server/router.ts` — HTTP-layer validation (method/path/origin/auth/media-types/request caps)
 - `src/server/auth.ts` — bearer token verification (SecretStorage-backed, constant-time compare)
 - `src/mcp/jsonrpc.ts` — strict single-message JSON-RPC parsing/validation (no batches)
@@ -142,6 +154,7 @@ Primary settings (machine-scoped):
 ## Contract-first change workflow (must follow)
 
 ### If you add/rename/modify a tool
+
 - Update **`docs/CONTRACT.md`**
 - Update **`schemas/`** for the tool input schema
 - Update tests that assert:
@@ -151,10 +164,12 @@ Primary settings (machine-scoped):
   - bounds and error codes
 
 ### If you change transport / headers / lifecycle
+
 - Update **`docs/PROTOCOL.md`**
 - Update protocol-level tests (including init sequence and post-init header enforcement)
 
 ### If you touch security controls / trust boundaries
+
 - Update **`docs/SECURITY.md`**
 - Add/adjust tests proving invariants still hold (auth, roots, origin behavior, logging hygiene)
 
@@ -169,7 +184,7 @@ If it is not in the contract, it is out of scope for v1.
 - Keep module semantics consistent with the repo’s ESM + NodeNext setup:
   - Use ESM imports/exports (no CJS `require`).
   - Preserve relative import specifiers with `.js` extensions where used.
-  - Prefer `node:`-prefixed built-in imports.  
+  - Prefer `node:`-prefixed built-in imports.
 - Never “helpfully” accept ambiguous input shapes:
   - JSON-RPC envelope must be strict
   - input schemas must be strict
@@ -185,8 +200,10 @@ If it is not in the contract, it is out of scope for v1.
 ---
 
 ## Planning gate (ExecPlan)
+
 Before making broad/risky changes (multi-tool refactors, cursor algorithm changes, security boundary changes, or large doc/schema rewrites),
 write a short plan and keep it updated as you implement:
+
 - Goal + non-goals
 - Files/areas in scope
 - Step sequence
@@ -196,6 +213,7 @@ write a short plan and keep it updated as you implement:
 ---
 
 ## When instructions are unclear
+
 1. Treat `docs/PROTOCOL.md`, `docs/CONTRACT.md`, and `docs/SECURITY.md` as the source of truth.
 2. Search for existing precedent in `src/` and `test/` and follow established patterns (canonicalization/filtering/paging).
 3. If still blocked, choose a **safe, fail-closed behavior** and leave a `TODO(verify): ...` marker tied to a specific file/line.

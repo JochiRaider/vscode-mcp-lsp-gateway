@@ -21,7 +21,7 @@ See also:
 4. Be deterministic and bounded to reduce DoS risk and eliminate nondeterministic partial leakage.
 5. Avoid secret leakage in logs, error messages, and diagnostics payloads.
 6. Keep outputs minimal by default (token and accidental leakage minimization).
-   
+
 ---
 
 ## 2. Trust boundaries and assets
@@ -50,6 +50,7 @@ This extension is a **workspace extension** and may run in a remote extension ho
   - If localhost forwarding is not available in a given setup, treat this as an operational incompatibility rather than relaxing bind rules.
 
 Security impact:
+
 - “Local-only” means “local to the machine running the extension host.” In Remote-WSL, that includes both Windows host processes and WSL processes as “local attackers.”
 
 ---
@@ -67,11 +68,12 @@ This threat model assumes:
   - a compromised or misconfigured client that sends oversized or malformed requests
 
 Notes:
+
 - v1 does not target browser-based clients. The combination of:
   - mandatory `Authorization: Bearer ...` and
   - strict method allowlist (POST-only)
-  will typically prevent browsers from successfully issuing authenticated requests due to preflight behavior.
-  Origin validation remains defense-in-depth against localhost attack patterns.
+    will typically prevent browsers from successfully issuing authenticated requests due to preflight behavior.
+    Origin validation remains defense-in-depth against localhost attack patterns.
 
 ### 3.1 Threats (STRIDE-style)
 
@@ -162,6 +164,7 @@ This is explicitly designed to reduce risk of browser-based localhost attacks wh
 Mitigates: browser-driven CSRF-like access to localhost endpoint, DNS rebinding exploitation.
 
 Notes:
+
 - v1 does not implement CORS as an access mechanism and does not treat CORS as a security boundary.
 - Allowlist matching is intended to be exact and conservative (no wildcards, no normalization).
 - Origin validation is defense-in-depth. The primary authorization control remains the bearer token.
@@ -296,6 +299,7 @@ Client guidance:
 - If you do not use browser-based clients, you may leave the allowlist empty; requests with an Origin header will be rejected unless explicitly allowed.
 
 Note:
+
 - Browser-based clients are out of scope for v1. Origin allowlisting is retained as a defense-in-depth control against browser-originated localhost attack attempts, not as a supported access path.
 
 ### 5.3 Additional allowed roots
