@@ -78,6 +78,7 @@ In `tools/list`, each returned tool entry MUST include:
 - `name` (exact stable tool name)
 - `description` (short, stable)
 - `inputSchema` (JSON Schema **object**, inlined; v1 does not return `$ref` here)
+- `outputSchema` (JSON Schema **object**, inlined; describes `structuredContent`)
 - `annotations.readOnlyHint: true`
 
 `readOnlyHint` MUST be `true` for all v1 tools.
@@ -761,9 +762,10 @@ Schema locations (v1):
 - Input schemas live at:
   - `schemas/tools/<toolname>.json`
 
-Reserved (not required for Step 6, but allowed later):
+- Output schemas live at:
+  - `schemas/tools/<toolname>.output.json`
 
-- If/when output schemas are added, they MUST match the outputs described in §7 and MUST be versioned/documented alongside any contract change.
+Output schemas MUST match the outputs described in §7 and MUST be versioned/documented alongside any contract change.
 
 ---
 

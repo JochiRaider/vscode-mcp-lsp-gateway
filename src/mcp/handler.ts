@@ -16,6 +16,8 @@ import type { McpPostContext, McpPostHandler, McpPostResult } from '../server/ro
 import { parseJsonRpcMessage, type JsonRpcId, type JsonRpcErrorObject } from './jsonrpc.js';
 import { dispatchToolsList, dispatchToolCall } from '../tools/dispatcher.js';
 import type { SchemaRegistry } from '../tools/schemaRegistry.js';
+import { truncateHoverToolCallResult } from '../tools/truncate.js';
+import { jsonByteLength, utf8ByteLength } from '../util/responseSize.js';
 
 export type McpServerInfo = Readonly<{
   name: string;
@@ -302,7 +304,16 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       });
 
       if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
-      const response = jsonRpcResultResponse(req.id, dispatched.result);
+      const toolResult =
+        toolName === 'vscode.lsp.hover'
+          ? truncateHoverToolCallResult(
+              dispatched.result,
+              opts.maxResponseBytes,
+              (candidate) =>
+                jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
+            ).result
+          : dispatched.result;
+      const response = jsonRpcResultResponse(req.id, toolResult);
       if (response.bodyText && exceedsMaxResponseBytes(response.bodyText, opts.maxResponseBytes)) {
         return jsonRpcErrorResponse(
           req.id,
@@ -352,7 +363,7 @@ function capExceededError(message: string): JsonRpcErrorObject {
 
 function exceedsMaxResponseBytes(bodyText: string, maxResponseBytes: number): boolean {
   if (!Number.isFinite(maxResponseBytes) || maxResponseBytes <= 0) return false;
-  return Buffer.byteLength(bodyText, 'utf8') > Math.floor(maxResponseBytes);
+  return utf8ByteLength(bodyText) > Math.floor(maxResponseBytes);
 }
 
 function getProtocolVersionParam(params: unknown): string | undefined {

@@ -9,6 +9,7 @@
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import type { SchemaRegistry } from '../schemaRegistry.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
+import { computeRequestKey, validateCursor } from '../paging/cursor.js';
 import { unimplementedToolError } from './_unimplemented.js';
 
 const TOOL_NAME = 'vscode.lsp.workspaceSymbols' as const;
@@ -31,12 +32,21 @@ export async function handleWorkspaceSymbols(
   if (!validated.ok) return { ok: false, error: validated.error };
 
   // Apply URI gating only when schema allows a top-level `uri` (Ajv would otherwise reject it).
-  const v = validated.value as Record<string, unknown>;
-  const uriRaw = v['uri'];
+  const v = validated.value as Readonly<{
+    query: string;
+    cursor?: string | null;
+    uri?: string;
+  }>;
+  const uriRaw = v.uri;
   if (typeof uriRaw === 'string') {
     const gated = await canonicalizeAndGateFileUri(uriRaw, deps.allowedRootsRealpaths);
     if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
   }
+
+  const normalizedQuery = v.query.trim();
+  const requestKey = computeRequestKey(TOOL_NAME, [normalizedQuery]);
+  const cursorChecked = validateCursor(v.cursor, requestKey);
+  if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
   return { ok: false, error: unimplementedToolError({ tool: TOOL_NAME }) };
 }

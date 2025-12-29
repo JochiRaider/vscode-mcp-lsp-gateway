@@ -6,6 +6,7 @@ import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import globals from "globals";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,18 @@ export default tseslint.config(
     ...c,
     files: ['src/**/*.ts', 'test/**/*.ts'],
   })),
+  {
+    files: ["test/**/*.js"],
+    languageOptions: {
+      // Your tests are CommonJS (require/exports)
+      sourceType: "commonjs",
+      ecmaVersion: "latest",
+      globals: {
+        ...globals.node,  // require, exports, Buffer, __dirname, etc.
+        ...globals.mocha, // describe, it, before, after, etc.
+      },
+    },
+  },
   {
     files: ['src/**/*.ts', 'test/**/*.ts'],
     languageOptions: {

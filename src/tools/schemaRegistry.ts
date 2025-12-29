@@ -1,11 +1,13 @@
 // src/tools/schemaRegistry.ts
 //
 // Loads tool input JSON Schemas from `schemas/tools/**`, compiles them with Ajv exactly once,
-// and provides deterministic validation results for MCP tools/call.
+// loads tool output JSON Schemas for tools/list, and provides deterministic validation results
+// for MCP tools/call.
 //
 // Conventions (v1):
-// - One schema file per tool, named: `schemas/tools/<toolName>.json`
+// - One input schema file per tool, named: `schemas/tools/<toolName>.json`
 //   Example: `schemas/tools/vscode.lsp.definition.json`
+// - One output schema file per tool, named: `schemas/tools/<toolName>.output.json`
 // - Root schema MUST be an object schema and MUST set `additionalProperties: false`.
 //
 // Validation behavior (v1):
@@ -65,37 +67,56 @@ export class SchemaRegistry {
     });
 
     const schemaByTool = new Map<V1ToolName, JsonSchemaObject>();
+    const outputSchemaByTool = new Map<V1ToolName, JsonSchemaObject>();
     const validateByTool = new Map<V1ToolName, ValidateFunction>();
 
     for (const toolName of V1_TOOL_NAMES) {
-      const fileName = `${toolName}.json`;
-      const absPath = context.asAbsolutePath(path.join(TOOL_SCHEMA_DIR, fileName));
+      const inputFileName = `${toolName}.json`;
+      const outputFileName = `${toolName}.output.json`;
+      const inputAbsPath = context.asAbsolutePath(path.join(TOOL_SCHEMA_DIR, inputFileName));
+      const outputAbsPath = context.asAbsolutePath(path.join(TOOL_SCHEMA_DIR, outputFileName));
 
       // Fail closed: every v1 tool must have a schema file.
-      if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
-        throw new Error(`Missing tool schema file for "${toolName}": ${absPath}`);
+      if (!fs.existsSync(inputAbsPath) || !fs.statSync(inputAbsPath).isFile()) {
+        throw new Error(`Missing tool input schema file for "${toolName}": ${inputAbsPath}`);
       }
 
-      const raw = fs.readFileSync(absPath, 'utf8');
-      const schema = safeParseJson(raw, absPath);
-      assertRootSchemaInvariants(toolName, schema);
+      if (!fs.existsSync(outputAbsPath) || !fs.statSync(outputAbsPath).isFile()) {
+        throw new Error(`Missing tool output schema file for "${toolName}": ${outputAbsPath}`);
+      }
 
-      const validate = ajv.compile(schema);
-      schemaByTool.set(toolName, schema);
+      const rawInput = fs.readFileSync(inputAbsPath, 'utf8');
+      const inputSchema = safeParseJson(rawInput, inputAbsPath);
+      assertRootSchemaInvariants(toolName, inputSchema, 'input');
+
+      const rawOutput = fs.readFileSync(outputAbsPath, 'utf8');
+      const outputSchema = safeParseJson(rawOutput, outputAbsPath);
+      assertRootSchemaInvariants(toolName, outputSchema, 'output');
+
+      const validate = ajv.compile(inputSchema);
+      schemaByTool.set(toolName, inputSchema);
+      outputSchemaByTool.set(toolName, outputSchema);
       validateByTool.set(toolName, validate);
     }
 
-    return Promise.resolve(new SchemaRegistry(schemaByTool, validateByTool));
+    return Promise.resolve(new SchemaRegistry(schemaByTool, outputSchemaByTool, validateByTool));
   }
 
   private constructor(
     private readonly schemaByTool: Map<V1ToolName, JsonSchemaObject>,
+    private readonly outputSchemaByTool: Map<V1ToolName, JsonSchemaObject>,
     private readonly validateByTool: Map<V1ToolName, ValidateFunction>,
   ) {}
 
   public getInputSchema(toolName: V1ToolName): JsonSchemaObject {
     const schema = this.schemaByTool.get(toolName);
     if (!schema) throw new Error(`Schema not loaded for tool: ${toolName}`);
+    return schema;
+  }
+
+  public getOutputSchema(toolName: V1ToolName): JsonSchemaObject {
+    const schema = this.outputSchemaByTool.get(toolName);
+    if (!schema) throw new Error(`Output schema not loaded for tool: ${toolName}`);
     return schema;
   }
 
@@ -177,16 +198,22 @@ function safeParseJson(raw: string, absPath: string): JsonSchemaObject {
   return parsed as JsonSchemaObject;
 }
 
-function assertRootSchemaInvariants(toolName: V1ToolName, schema: JsonSchemaObject): void {
+function assertRootSchemaInvariants(
+  toolName: V1ToolName,
+  schema: JsonSchemaObject,
+  kind: 'input' | 'output',
+): void {
   const t = schema['type'];
   if (t !== 'object') {
-    throw new Error(`Tool schema root must have type "object" (${toolName}).`);
+    throw new Error(`Tool ${kind} schema root must have type "object" (${toolName}).`);
   }
 
   // Enforce contract requirement to prevent foot-guns and test ambiguity.
   const ap = schema['additionalProperties'];
   if (ap !== false) {
-    throw new Error(`Tool schema root must set additionalProperties: false (${toolName}).`);
+    throw new Error(
+      `Tool ${kind} schema root must set additionalProperties: false (${toolName}).`,
+    );
   }
 }
 

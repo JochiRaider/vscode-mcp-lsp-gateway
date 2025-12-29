@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.references.output.json",
+  "title": "vscode.lsp.references — output schema",
+  "description": "StructuredContent for vscode.lsp.references.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items", "nextCursor"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/location" }
+    },
+    "nextCursor": {
+      "type": ["string", "null"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 0 },
+        "character": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/position" },
+        "end": { "$ref": "#/$defs/position" }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "range"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1, "pattern": "^file:" },
+        "range": { "$ref": "#/$defs/range" }
+      }
+    }
+  }
+}

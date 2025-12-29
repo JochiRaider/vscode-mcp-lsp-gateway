@@ -16,6 +16,11 @@ import {
   canonicalizeFileUri,
   isRealPathAllowed,
 } from '../../workspace/uri.js';
+import {
+  canonicalDedupeKey,
+  compareLocations,
+  dedupeSortedByKey,
+} from '../sorting.js';
 
 const MAX_ITEMS_NONPAGED = 200;
 
@@ -99,8 +104,8 @@ export async function handleDefinition(
   const normalized = await normalizeDefinitionResult(raw, deps.allowedRootsRealpaths);
 
   // Stable sort + deterministic dedupe (per contract ordering rules).
-  normalized.sort(compareLocationsAsc);
-  const deduped = dedupeSortedLocations(normalized);
+  normalized.sort(compareLocations);
+  const deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
 
   // Enforce MAX_ITEMS_NONPAGED via deterministic truncation (keep first N after canonical sort).
   const truncated =
@@ -197,42 +202,6 @@ function isLocationLink(v: unknown): v is vscode.LocationLink {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.targetUri instanceof vscode.Uri && o.targetRange instanceof vscode.Range;
-}
-
-function compareLocationsAsc(a: ContractLocation, b: ContractLocation): number {
-  if (a.uri !== b.uri) return a.uri < b.uri ? -1 : 1;
-
-  const as = a.range.start;
-  const bs = b.range.start;
-  if (as.line !== bs.line) return as.line - bs.line;
-  if (as.character !== bs.character) return as.character - bs.character;
-
-  const ae = a.range.end;
-  const be = b.range.end;
-  if (ae.line !== be.line) return ae.line - be.line;
-  if (ae.character !== be.character) return ae.character - be.character;
-
-  return 0;
-}
-
-function dedupeSortedLocations(sorted: readonly ContractLocation[]): ContractLocation[] {
-  const out: ContractLocation[] = [];
-  let lastKey: string | undefined;
-
-  for (const loc of sorted) {
-    const k = locationKey(loc);
-    if (k === lastKey) continue;
-    out.push(loc);
-    lastKey = k;
-  }
-
-  return out;
-}
-
-function locationKey(l: ContractLocation): string {
-  const s = l.range.start;
-  const e = l.range.end;
-  return `${l.uri}|${s.line}|${s.character}|${e.line}|${e.character}`;
 }
 
 function normalizeNonNegativeInt(v: unknown): number | undefined {

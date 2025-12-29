@@ -228,7 +228,7 @@ class ExtensionRuntime {
     await this.stopServer();
 
     // Step 6: compile schemas once (fail closed) so:
-    // - tools/list can return inputSchema objects
+    // - tools/list can return inputSchema/outputSchema objects
     // - tools/call can validate params deterministically via Ajv
     let schemaRegistry: SchemaRegistry;
     try {

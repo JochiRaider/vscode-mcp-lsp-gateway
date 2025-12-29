@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.hover.output.json",
+  "title": "vscode.lsp.hover — output schema",
+  "description": "StructuredContent for vscode.lsp.hover.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contents"],
+  "properties": {
+    "contents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "value"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["markdown", "plaintext"] },
+          "value": { "type": "string" }
+        }
+      }
+    },
+    "range": { "$ref": "#/$defs/range" },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 0 },
+        "character": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/position" },
+        "end": { "$ref": "#/$defs/position" }
+      }
+    }
+  }
+}

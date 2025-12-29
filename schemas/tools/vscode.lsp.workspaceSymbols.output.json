@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/tools/vscode.lsp.workspaceSymbols.output.json",
+  "title": "vscode.lsp.workspaceSymbols — output schema",
+  "description": "StructuredContent for vscode.lsp.workspaceSymbols.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items", "nextCursor"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workspaceSymbol" }
+    },
+    "nextCursor": {
+      "type": ["string", "null"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 0 },
+        "character": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/position" },
+        "end": { "$ref": "#/$defs/position" }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "range"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1, "pattern": "^file:" },
+        "range": { "$ref": "#/$defs/range" }
+      }
+    },
+    "workspaceSymbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "location"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "pattern": "^sha256:" },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "integer", "minimum": 0 },
+        "location": { "$ref": "#/$defs/location" },
+        "containerName": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

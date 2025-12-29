@@ -8,6 +8,7 @@
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import type { SchemaRegistry } from '../schemaRegistry.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
+import { computeRequestKey, validateCursor } from '../paging/cursor.js';
 import { unimplementedToolError } from './_unimplemented.js';
 
 const TOOL_NAME = 'vscode.lsp.references' as const;
@@ -26,7 +27,12 @@ export async function handleReferences(args: unknown, deps: ReferencesDeps): Pro
   const validated = deps.schemaRegistry.validateInput(TOOL_NAME, args);
   if (!validated.ok) return { ok: false, error: validated.error };
 
-  const v = validated.value as Readonly<{ uri: string }>;
+  const v = validated.value as Readonly<{
+    uri: string;
+    position: Readonly<{ line: number; character: number }>;
+    includeDeclaration?: boolean;
+    cursor?: string | null;
+  }>;
 
   const gated = await canonicalizeAndGateFileUri(v.uri, deps.allowedRootsRealpaths).catch(() => ({
     ok: false as const,
@@ -34,6 +40,16 @@ export async function handleReferences(args: unknown, deps: ReferencesDeps): Pro
   }));
 
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
+
+  const includeDeclaration = v.includeDeclaration === true;
+  const requestKey = computeRequestKey(TOOL_NAME, [
+    gated.value.uri,
+    v.position.line,
+    v.position.character,
+    includeDeclaration,
+  ]);
+  const cursorChecked = validateCursor(v.cursor, requestKey);
+  if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
   return { ok: false, error: unimplementedToolError({ tool: TOOL_NAME }) };
 }

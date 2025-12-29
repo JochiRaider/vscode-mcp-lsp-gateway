@@ -4,7 +4,7 @@
 // - Stable, ordered tool names per docs/CONTRACT.md
 // - Stable descriptions
 // - readOnlyHint annotations (always true in v1)
-// - inputSchema is provided as an object at runtime (e.g., from schemaRegistry)
+// - inputSchema/outputSchema are provided as objects at runtime (e.g., from schemaRegistry)
 
 export const V1_TOOL_NAMES = [
   'vscode.lsp.definition',
@@ -24,6 +24,7 @@ export type ToolCatalogEntry = Readonly<{
   name: V1ToolName;
   description: string;
   inputSchema: JsonSchemaObject;
+  outputSchema: JsonSchemaObject;
   annotations: Readonly<{ readOnlyHint: true }>;
 }>;
 
@@ -49,14 +50,17 @@ export function isV1ToolName(name: string): name is V1ToolName {
  */
 export function buildV1ToolCatalog(
   getInputSchema: (name: V1ToolName) => JsonSchemaObject,
+  getOutputSchema: (name: V1ToolName) => JsonSchemaObject,
 ): readonly ToolCatalogEntry[] {
   // Explicit construction preserves stable ordering (no object key iteration).
   return V1_TOOL_NAMES.map((name) => {
     const inputSchema = getInputSchema(name);
+    const outputSchema = getOutputSchema(name);
     return {
       name,
       description: DESCRIPTIONS[name],
       inputSchema,
+      outputSchema,
       annotations: { readOnlyHint: true },
     } as const;
   });

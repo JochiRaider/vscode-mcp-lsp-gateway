@@ -125,7 +125,10 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
 } as const;
 
 export function dispatchToolsList(schemaRegistry: SchemaRegistry): ToolsListResult {
-  const tools = buildV1ToolCatalog((name) => schemaRegistry.getInputSchema(name));
+  const tools = buildV1ToolCatalog(
+    (name) => schemaRegistry.getInputSchema(name),
+    (name) => schemaRegistry.getOutputSchema(name),
+  );
   return { tools };
 }
 
