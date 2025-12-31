@@ -10,6 +10,7 @@
     "query": {
       "type": "string",
       "minLength": 1,
+      "pattern": "\\S",
       "maxLength": 512,
       "description": "Free-text symbol query."
     },

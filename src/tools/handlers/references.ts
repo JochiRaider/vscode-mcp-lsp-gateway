@@ -20,6 +20,7 @@ import { computeRequestKey, paginate, validateCursor } from '../paging/cursor.js
 
 const TOOL_NAME = 'vscode.lsp.references' as const;
 const MAX_REFERENCES_ITEMS_TOTAL = 20000;
+export const MAX_REFERENCES_ITEMS_RAW = MAX_REFERENCES_ITEMS_TOTAL * 4;
 const MAX_PAGE_SIZE = 200;
 const DEFAULT_PAGE_SIZE = 100;
 
@@ -88,6 +89,9 @@ export async function handleReferences(
     return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
   }
 
+  const rawCapError = checkReferencesRawCap(raw);
+  if (rawCapError) return { ok: false, error: rawCapError };
+
   const normalized = await normalizeReferenceResult(raw, deps.allowedRootsRealpaths);
   normalized.sort(compareLocations);
   const deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
@@ -120,6 +124,13 @@ export function checkReferencesTotalCap(count: number): JsonRpcErrorObject | und
   return undefined;
 }
 
+export function checkReferencesRawCap(raw: unknown): JsonRpcErrorObject | undefined {
+  if (Array.isArray(raw) && raw.length > MAX_REFERENCES_ITEMS_RAW) {
+    return capExceededError('References exceeded max total.');
+  }
+  return undefined;
+}
+
 async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocument> {
   const asString = uri.toString();
   const existing = vscode.workspace.textDocuments.find((d) => d.uri.toString() === asString);
@@ -127,15 +138,20 @@ async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocu
   return await vscode.workspace.openTextDocument(uri);
 }
 
-async function normalizeReferenceResult(
+export async function normalizeReferenceResult(
   raw: unknown,
   allowedRootsRealpaths: readonly string[],
 ): Promise<ContractLocation[]> {
   const out: ContractLocation[] = [];
   const items = normalizeToArray(raw);
   for (const item of items) {
-    const loc = await normalizeOneLocationLike(item, allowedRootsRealpaths);
-    if (loc) out.push(loc);
+    try {
+      const loc = await normalizeOneLocationLike(item, allowedRootsRealpaths);
+      if (loc) out.push(loc);
+    } catch {
+      // Fail closed: drop invalid items deterministically.
+      continue;
+    }
   }
   return out;
 }
@@ -148,7 +164,8 @@ async function normalizeOneLocationLike(
 
   if (isLocationLink(item)) {
     const targetUri = item.targetUri;
-    const range = item.targetSelectionRange ?? item.targetRange;
+    const range = pickLocationLinkRange(item);
+    if (!range) return undefined;
     return await canonicalizeAndFilterLocation(targetUri, range, allowedRootsRealpaths);
   }
 
@@ -197,6 +214,12 @@ function isLocationLink(v: unknown): v is vscode.LocationLink {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.targetUri instanceof vscode.Uri && o.targetRange instanceof vscode.Range;
+}
+
+function pickLocationLinkRange(link: vscode.LocationLink): vscode.Range | undefined {
+  if (link.targetSelectionRange instanceof vscode.Range) return link.targetSelectionRange;
+  if (link.targetRange instanceof vscode.Range) return link.targetRange;
+  return undefined;
 }
 
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {

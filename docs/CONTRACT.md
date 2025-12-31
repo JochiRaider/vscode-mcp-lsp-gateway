@@ -603,6 +603,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 **Determinism**
 
 - Normalize `query` (trim).
+- Reject whitespace-only queries after normalization with `Invalid params`.
 - Filter results to allowed roots.
 - Stable sort per §4.2 “Workspace symbols”.
 - Dedup, enforce total-set cap, then page via §3.5.
