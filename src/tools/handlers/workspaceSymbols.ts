@@ -12,7 +12,7 @@ import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareWorkspaceSymbols, dedupeSortedByKey } from '../sorting.js';
-import { computeRequestKey, paginate, validateCursor } from '../paging/cursor.js';
+import { computeRequestKey, paginate } from '../paging/cursor.js';
 
 const TOOL_NAME = 'vscode.lsp.workspaceSymbols' as const;
 const MAX_WORKSPACE_SYMBOLS_ITEMS_TOTAL = 20000;
@@ -49,14 +49,21 @@ export type WorkspaceSymbolsDeps = Readonly<{
   maxItemsPerPage: number;
 }>;
 
+type CanonicalizeResult = Awaited<ReturnType<typeof canonicalizeFileUri>>;
+type CanonicalizeFn = (uriString: string) => Promise<CanonicalizeResult>;
+
 export async function handleWorkspaceSymbols(
   args: WorkspaceSymbolsInput,
   deps: WorkspaceSymbolsDeps,
 ): Promise<ToolResult> {
   const normalizedQuery = normalizeWorkspaceSymbolsQuery(args.query);
+  if (normalizedQuery.length === 0) {
+    return {
+      ok: false,
+      error: toolError(E_INVALID_PARAMS, 'MCP_LSP_GATEWAY/INVALID_PARAMS'),
+    };
+  }
   const requestKey = computeRequestKey(TOOL_NAME, [normalizedQuery]);
-  const cursorChecked = validateCursor(args.cursor, requestKey);
-  if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
@@ -108,14 +115,16 @@ export function checkWorkspaceSymbolsTotalCap(count: number): JsonRpcErrorObject
   return undefined;
 }
 
-async function normalizeWorkspaceSymbols(
+export async function normalizeWorkspaceSymbols(
   raw: unknown,
   allowedRootsRealpaths: readonly string[],
+  canonicalize: CanonicalizeFn = canonicalizeFileUri,
 ): Promise<ContractWorkspaceSymbol[]> {
   const out: ContractWorkspaceSymbol[] = [];
+  const canonicalizeCached = createCanonicalizeCache(canonicalize);
   const items = normalizeToArray(raw);
   for (const item of items) {
-    const symbol = await normalizeOneSymbol(item, allowedRootsRealpaths);
+    const symbol = await normalizeOneSymbol(item, allowedRootsRealpaths, canonicalizeCached);
     if (symbol) out.push(symbol);
   }
   return out;
@@ -124,18 +133,25 @@ async function normalizeWorkspaceSymbols(
 async function normalizeOneSymbol(
   item: unknown,
   allowedRootsRealpaths: readonly string[],
+  canonicalize: CanonicalizeFn,
 ): Promise<ContractWorkspaceSymbol | undefined> {
   if (!item || typeof item !== 'object') return undefined;
   const rec = item as Record<string, unknown>;
 
   const name = rec.name;
   const kind = rec.kind;
-  const location = rec.location;
   if (typeof name !== 'string' || name.length === 0) return undefined;
   if (typeof kind !== 'number' || !Number.isInteger(kind) || kind < 0) return undefined;
-  if (!(location instanceof vscode.Location)) return undefined;
 
-  const loc = await canonicalizeAndFilterLocation(location, allowedRootsRealpaths);
+  const location = pickLocationLike(rec.location);
+  if (!location) return undefined;
+
+  const loc = await canonicalizeAndFilterLocation(
+    location.uri,
+    location.range,
+    allowedRootsRealpaths,
+    canonicalize,
+  );
   if (!loc) return undefined;
 
   const containerName =
@@ -162,24 +178,40 @@ async function normalizeOneSymbol(
 }
 
 async function canonicalizeAndFilterLocation(
-  location: vscode.Location,
+  uri: vscode.Uri,
+  range: vscode.Range,
   allowedRootsRealpaths: readonly string[],
+  canonicalize: CanonicalizeFn,
 ): Promise<ContractLocation | undefined> {
-  const canon = await canonicalizeFileUri(location.uri.toString());
+  const uriString = safeUriString(uri);
+  if (!uriString) return undefined;
+
+  const canon = await canonicalize(uriString);
   if (!canon.ok) return undefined;
   if (!isRealPathAllowed(canon.value.realPath, allowedRootsRealpaths)) return undefined;
 
+  const contractRange = toContractRange(range);
+  if (!contractRange) return undefined;
+
   return {
     uri: canon.value.uri,
-    range: toContractRange(location.range),
+    range: contractRange,
   };
 }
 
-function toContractRange(r: vscode.Range): ContractRange {
-  return {
-    start: { line: r.start.line, character: r.start.character },
-    end: { line: r.end.line, character: r.end.character },
-  };
+function toContractRange(r: vscode.Range): ContractRange | undefined {
+  const start = toContractPosition(r.start);
+  const end = toContractPosition(r.end);
+  if (!start || !end) return undefined;
+  return { start, end };
+}
+
+function toContractPosition(pos: vscode.Position): ContractPosition | undefined {
+  const line = pos.line;
+  const character = pos.character;
+  if (!Number.isInteger(line) || line < 0) return undefined;
+  if (!Number.isInteger(character) || character < 0) return undefined;
+  return { line, character };
 }
 
 function rangeKey(pos: ContractPosition): string {
@@ -190,6 +222,43 @@ function normalizeToArray(raw: unknown): unknown[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   return [raw];
+}
+
+type LocationLike = Readonly<{ uri: vscode.Uri; range: vscode.Range }>;
+
+function pickLocationLike(value: unknown): LocationLike | undefined {
+  if (value instanceof vscode.Location) {
+    return { uri: value.uri, range: value.range };
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  const rec = value as Record<string, unknown>;
+  const uri = rec.uri;
+  const range = rec.range;
+  if (uri instanceof vscode.Uri && range instanceof vscode.Range) {
+    return { uri, range };
+  }
+  return undefined;
+}
+
+function safeUriString(uri: vscode.Uri): string | undefined {
+  try {
+    const s = uri.toString();
+    return typeof s === 'string' && s.length > 0 ? s : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function createCanonicalizeCache(canonicalize: CanonicalizeFn): CanonicalizeFn {
+  const cache = new Map<string, Promise<CanonicalizeResult>>();
+  return (uriString) => {
+    const key = uriString;
+    const existing = cache.get(key);
+    if (existing) return existing;
+    const pending = canonicalize(key);
+    cache.set(key, pending);
+    return pending;
+  };
 }
 
 function toolError(
