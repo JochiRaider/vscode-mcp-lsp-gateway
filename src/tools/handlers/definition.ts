@@ -66,6 +66,9 @@ export async function handleDefinition(
   if (!doc) {
     return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
   }
+  if (!isPositionInDocument(doc, input.position)) {
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
+  }
 
   // Execute provider command.
   let raw: unknown;
@@ -105,7 +108,7 @@ async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocu
   return await vscode.workspace.openTextDocument(uri);
 }
 
-async function normalizeDefinitionResult(
+export async function normalizeDefinitionResult(
   raw: unknown,
   allowedRootsRealpaths: readonly string[],
 ): Promise<ContractLocation[]> {
@@ -129,7 +132,8 @@ async function normalizeOneLocationLike(
   // LocationLink
   if (isLocationLink(item)) {
     const targetUri = item.targetUri;
-    const range = item.targetSelectionRange ?? item.targetRange;
+    const range = pickLocationLinkRange(item);
+    if (!range) return undefined;
     return await canonicalizeAndFilterLocation(targetUri, range, allowedRootsRealpaths);
   }
 
@@ -181,6 +185,22 @@ function isLocationLink(v: unknown): v is vscode.LocationLink {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return o.targetUri instanceof vscode.Uri && o.targetRange instanceof vscode.Range;
+}
+
+function pickLocationLinkRange(link: vscode.LocationLink): vscode.Range | undefined {
+  if (link.targetSelectionRange instanceof vscode.Range) return link.targetSelectionRange;
+  if (link.targetRange instanceof vscode.Range) return link.targetRange;
+  return undefined;
+}
+
+export function isPositionInDocument(
+  doc: vscode.TextDocument,
+  position: Readonly<{ line: number; character: number }>,
+): boolean {
+  if (!Number.isInteger(position.line) || !Number.isInteger(position.character)) return false;
+  if (position.line < 0 || position.line >= doc.lineCount) return false;
+  const line = doc.lineAt(position.line);
+  return position.character >= 0 && position.character <= line.text.length;
 }
 
 function toolError(
