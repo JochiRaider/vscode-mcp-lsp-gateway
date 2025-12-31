@@ -204,7 +204,7 @@ export function enforceDiagnosticsCap(items: readonly ContractDiagnostic[]): Rea
 }
 
 function normalizeSeverity(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  if (!isNonNegativeInt(value)) return undefined;
   return value;
 }
 

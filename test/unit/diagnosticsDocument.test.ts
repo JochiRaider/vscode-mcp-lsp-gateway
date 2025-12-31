@@ -73,6 +73,33 @@ describe('diagnostics document normalization', () => {
     expect(normalized[0].source).to.equal('lint');
   });
 
+  it('omits non-integer or negative severity values', () => {
+    const range = {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 1 },
+    };
+
+    const normalized = normalizeDiagnostics(
+      [
+        { range, message: 'int', severity: 2 },
+        { range, message: 'zero', severity: 0 },
+        { range, message: 'float', severity: 1.5 },
+        { range, message: 'neg', severity: -1 },
+        { range, message: 'nan', severity: Number.NaN },
+        { range, message: 'inf', severity: Number.POSITIVE_INFINITY },
+      ],
+      'file:///abs/path/to/file.ts',
+    );
+
+    const byMessage = (message: string) => normalized.find((d) => d.message === message);
+    expect(byMessage('int')?.severity).to.equal(2);
+    expect(byMessage('zero')?.severity).to.equal(0);
+    expect(byMessage('float')?.severity).to.equal(undefined);
+    expect(byMessage('neg')?.severity).to.equal(undefined);
+    expect(byMessage('nan')?.severity).to.equal(undefined);
+    expect(byMessage('inf')?.severity).to.equal(undefined);
+  });
+
   it('sorts deterministically and dedupes exact duplicates', () => {
     const rangeA = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 1));
     const rangeB = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1));
