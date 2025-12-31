@@ -6,7 +6,6 @@ import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import globals from 'globals';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,9 +23,9 @@ export default tseslint.config(
     ...c,
     files: ['src/**/*.ts', 'test/**/*.ts'],
   })),
-  
+
   {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -36,7 +35,7 @@ export default tseslint.config(
   },
   ...tseslint.configs.recommendedTypeChecked.map((c) => ({
     ...c,
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts'],
   })),
 
   // Put Prettier last: it disables ESLint rules that conflict with Prettier

@@ -15,7 +15,8 @@ class FakeSecrets implements vscode.SecretStorage {
     return Promise.resolve([]);
   }
 
-  public get(_key: string): Promise<string | undefined> {
+  public get(key: string): Promise<string | undefined> {
+    void key;
     return Promise.resolve(this.raw);
   }
 
