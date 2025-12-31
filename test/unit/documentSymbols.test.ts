@@ -6,6 +6,7 @@ import {
   enforceDocumentSymbolsCap,
   flattenDocumentSymbols,
   MAX_ITEMS_NONPAGED,
+  normalizeDocumentSymbolsResult,
   normalizeSymbolInformation,
 } from '../../src/tools/handlers/documentSymbols';
 
@@ -40,6 +41,45 @@ describe('documentSymbols helpers', () => {
     expect(flat[1].containerName).to.equal('Parent');
   });
 
+  it('drops whitespace-only names and normalizes ranges', () => {
+    const goodRange = {
+      start: { line: 2, character: 3 },
+      end: { line: 1, character: 1 },
+    } as vscode.Range;
+    const badRange = {
+      start: { line: -1, character: 4 },
+      end: { line: 0, character: -2 },
+    } as vscode.Range;
+
+    const good = {
+      name: 'Good',
+      detail: '',
+      kind: vscode.SymbolKind.Function,
+      range: goodRange,
+      selectionRange: badRange,
+      children: [],
+    } as vscode.DocumentSymbol;
+    const bad = {
+      name: '   ',
+      detail: '',
+      kind: vscode.SymbolKind.Function,
+      range: goodRange,
+      selectionRange: goodRange,
+      children: [],
+    } as vscode.DocumentSymbol;
+
+    const flat = flattenDocumentSymbols([bad, good], 'file:///abs/path/to/file.ts', undefined);
+    expect(flat.map((s) => s.name)).to.deep.equal(['Good']);
+    expect(flat[0].range).to.deep.equal({
+      start: { line: 1, character: 1 },
+      end: { line: 2, character: 3 },
+    });
+    expect(flat[0].selectionRange).to.deep.equal({
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 4 },
+    });
+  });
+
   it('normalizes SymbolInformation with stable id and selectionRange', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
     const filePath = path.join(repoRoot, 'docs', 'CONTRACT.md');
@@ -60,6 +100,48 @@ describe('documentSymbols helpers', () => {
     if (!normalized) return;
     expect(normalized.id).to.match(/^sha256:[0-9a-f]{64}$/);
     expect(normalized.selectionRange).to.deep.equal(normalized.range);
+  });
+
+  it('drops whitespace-only SymbolInformation names', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const filePath = path.join(repoRoot, 'docs', 'CONTRACT.md');
+    const location = new vscode.Location(
+      vscode.Uri.file(filePath),
+      new vscode.Range(new vscode.Position(3, 0), new vscode.Position(3, 4)),
+    );
+    const sym = new vscode.SymbolInformation(
+      '   ',
+      vscode.SymbolKind.Function,
+      'Container',
+      location,
+    );
+
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+    const normalized = await normalizeSymbolInformation(sym, allowedRootsRealpaths);
+    expect(normalized).to.equal(undefined);
+  });
+
+  it('returns CAP_EXCEEDED when traversal cap is exceeded', async () => {
+    const symbols = Array.from({ length: 4 }, (_, i) => ({
+      name: `S${i}`,
+      detail: '',
+      kind: vscode.SymbolKind.Function,
+      range: new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, 1)),
+      selectionRange: new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, 1)),
+      children: [],
+    })) as vscode.DocumentSymbol[];
+
+    const result = await normalizeDocumentSymbolsResult(
+      symbols,
+      'file:///abs/path/to/file.ts',
+      [],
+      3,
+    );
+    expect(result.ok).to.equal(false);
+    if (result.ok) return;
+    expect(result.error.code).to.equal(-32603);
+    const data = result.error.data as { code?: string };
+    expect(data.code).to.equal('MCP_LSP_GATEWAY/CAP_EXCEEDED');
   });
 
   it('enforces MAX_ITEMS_NONPAGED via deterministic truncation', () => {

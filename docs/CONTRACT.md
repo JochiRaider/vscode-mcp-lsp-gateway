@@ -562,6 +562,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 **Limits**
 
 - `symbols.length <= MAX_ITEMS_NONPAGED`
+- If traversal exceeds the total-set cap, return `CAP_EXCEEDED` (no partial results).
 
 ---
 

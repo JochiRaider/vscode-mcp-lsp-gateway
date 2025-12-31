@@ -19,6 +19,7 @@ import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareDocumentSymbols, dedupeSortedByKey } from '../sorting.js';
 
 export const MAX_ITEMS_NONPAGED = 200;
+export const MAX_SYMBOL_NODES_VISITED = 20000;
 
 const E_INVALID_PARAMS = -32602;
 const E_INTERNAL = -32603;
@@ -74,8 +75,10 @@ export async function handleDocumentSymbols(
     gated.value.uri,
     deps.allowedRootsRealpaths,
   );
-  normalized.sort(compareDocumentSymbols);
-  const deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
+  if (!normalized.ok) return { ok: false, error: normalized.error };
+
+  normalized.items.sort(compareDocumentSymbols);
+  const deduped = dedupeSortedByKey(normalized.items, canonicalDedupeKey);
 
   const enforced = enforceDocumentSymbolsCap(deduped);
   const summary =
@@ -102,61 +105,115 @@ async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocu
   return await vscode.workspace.openTextDocument(uri);
 }
 
-async function normalizeDocumentSymbolsResult(
+export type NormalizeDocumentSymbolsResult =
+  | Readonly<{ ok: true; items: ContractDocumentSymbol[] }>
+  | Readonly<{ ok: false; error: JsonRpcErrorObject }>;
+
+type TraversalState = { visited: number; exceeded: boolean };
+
+export async function normalizeDocumentSymbolsResult(
   raw: unknown,
   canonicalUri: string,
   allowedRootsRealpaths: readonly string[],
-): Promise<ContractDocumentSymbol[]> {
+  maxNodesVisited: number = MAX_SYMBOL_NODES_VISITED,
+): Promise<NormalizeDocumentSymbolsResult> {
   const out: ContractDocumentSymbol[] = [];
+  const docSymbols: vscode.DocumentSymbol[] = [];
+  const symbolInfos: vscode.SymbolInformation[] = [];
   const items = normalizeToArray(raw);
   for (const item of items) {
     if (item instanceof vscode.DocumentSymbol) {
-      out.push(...flattenDocumentSymbols([item], canonicalUri, undefined));
-      continue;
-    }
-    if (item instanceof vscode.SymbolInformation) {
-      const symbol = await normalizeSymbolInformation(item, allowedRootsRealpaths);
-      if (symbol) out.push(symbol);
-      continue;
+      docSymbols.push(item);
+    } else if (item instanceof vscode.SymbolInformation) {
+      symbolInfos.push(item);
     }
   }
-  return out;
+
+  const state = createTraversalState();
+
+  if (docSymbols.length > 0) {
+    out.push(
+      ...flattenDocumentSymbols(docSymbols, canonicalUri, undefined, state, maxNodesVisited),
+    );
+  }
+
+  if (state.exceeded) {
+    return { ok: false, error: capExceededError('Document symbols exceeded max total.') };
+  }
+
+  for (const symbolInfo of symbolInfos) {
+    if (state.visited >= maxNodesVisited) {
+      state.exceeded = true;
+      break;
+    }
+    state.visited++;
+    const symbol = await normalizeSymbolInformation(symbolInfo, allowedRootsRealpaths);
+    if (symbol) out.push(symbol);
+  }
+
+  if (state.exceeded) {
+    return { ok: false, error: capExceededError('Document symbols exceeded max total.') };
+  }
+
+  return { ok: true, items: out };
 }
 
 export function flattenDocumentSymbols(
   symbols: readonly vscode.DocumentSymbol[],
   canonicalUri: string,
   containerName: string | undefined,
+  state: TraversalState = createTraversalState(),
+  maxNodesVisited: number = MAX_SYMBOL_NODES_VISITED,
 ): ContractDocumentSymbol[] {
   const out: ContractDocumentSymbol[] = [];
   const sorted = symbols.slice().sort(compareDocumentSymbolNodes);
 
   for (const sym of sorted) {
+    if (state.visited >= maxNodesVisited) {
+      state.exceeded = true;
+      break;
+    }
+    state.visited++;
+
+    const name = normalizeSymbolName(sym.name);
     const range = toContractRange(sym.range);
     const selectionRange = toContractRange(sym.selectionRange);
     const container = containerName && containerName.length > 0 ? containerName : undefined;
-    const canonicalString = [
-      canonicalUri,
-      sym.name,
-      sym.kind,
-      rangeKey(range.start),
-      rangeKey(range.end),
-      rangeKey(selectionRange.start),
-      rangeKey(selectionRange.end),
-      container ?? '',
-    ].join('|');
 
-    out.push({
-      id: stableIdFromCanonicalString(canonicalString),
-      name: sym.name,
-      kind: sym.kind,
-      range,
-      selectionRange,
-      ...(container ? { containerName: container } : undefined),
-    });
+    if (name) {
+      const canonicalString = [
+        canonicalUri,
+        name,
+        sym.kind,
+        rangeKey(range.start),
+        rangeKey(range.end),
+        rangeKey(selectionRange.start),
+        rangeKey(selectionRange.end),
+        container ?? '',
+      ].join('|');
+
+      out.push({
+        id: stableIdFromCanonicalString(canonicalString),
+        name,
+        kind: sym.kind,
+        range,
+        selectionRange,
+        ...(container ? { containerName: container } : undefined),
+      });
+    }
 
     if (Array.isArray(sym.children) && sym.children.length > 0) {
-      out.push(...flattenDocumentSymbols(sym.children, canonicalUri, sym.name));
+      const nextContainer = name ?? undefined;
+      out.push(
+        ...flattenDocumentSymbols(
+          sym.children,
+          canonicalUri,
+          nextContainer,
+          state,
+          maxNodesVisited,
+        ),
+      );
+      if (state.exceeded) break;
     }
   }
 
@@ -167,6 +224,9 @@ export async function normalizeSymbolInformation(
   symbol: vscode.SymbolInformation,
   allowedRootsRealpaths: readonly string[],
 ): Promise<ContractDocumentSymbol | undefined> {
+  const name = normalizeSymbolName(symbol.name);
+  if (!name) return undefined;
+
   const loc = await canonicalizeAndFilterLocation(symbol.location, allowedRootsRealpaths);
   if (!loc) return undefined;
 
@@ -178,7 +238,7 @@ export async function normalizeSymbolInformation(
       : undefined;
   const canonicalString = [
     loc.uri,
-    symbol.name,
+    name,
     symbol.kind,
     rangeKey(range.start),
     rangeKey(range.end),
@@ -189,7 +249,7 @@ export async function normalizeSymbolInformation(
 
   return {
     id: stableIdFromCanonicalString(canonicalString),
-    name: symbol.name,
+    name,
     kind: symbol.kind,
     range,
     selectionRange,
@@ -208,10 +268,9 @@ async function canonicalizeAndFilterLocation(
 }
 
 function toContractRange(r: vscode.Range): ContractRange {
-  return {
-    start: { line: r.start.line, character: r.start.character },
-    end: { line: r.end.line, character: r.end.character },
-  };
+  const start = toContractPosition(r.start);
+  const end = toContractPosition(r.end);
+  return normalizeRange(start, end);
 }
 
 function rangeKey(pos: ContractPosition): string {
@@ -236,11 +295,54 @@ function compareDocumentSymbolNodes(a: vscode.DocumentSymbol, b: vscode.Document
   return 0;
 }
 
+function createTraversalState(): TraversalState {
+  return { visited: 0, exceeded: false };
+}
+
+function normalizeSymbolName(name: unknown): string | undefined {
+  if (typeof name !== 'string') return undefined;
+  if (name.trim().length === 0) return undefined;
+  return name;
+}
+
+function toContractPosition(pos: vscode.Position): ContractPosition {
+  return {
+    line: clampPositionValue(pos.line),
+    character: clampPositionValue(pos.character),
+  };
+}
+
+function clampPositionValue(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const int = Math.floor(value);
+  return int < 0 ? 0 : int;
+}
+
+function normalizeRange(start: ContractPosition, end: ContractPosition): ContractRange {
+  return comparePosition(start, end) <= 0 ? { start, end } : { start: end, end: start };
+}
+
+function comparePosition(a: ContractPosition, b: ContractPosition): number {
+  if (a.line !== b.line) return a.line - b.line;
+  return a.character - b.character;
+}
+
 function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
   return {
     code: -32602,
     message: 'Invalid params',
     data: { code },
+  };
+}
+
+function capExceededError(message: string): JsonRpcErrorObject {
+  const data: Record<string, unknown> = { code: 'MCP_LSP_GATEWAY/CAP_EXCEEDED' };
+  const trimmed = message.trim();
+  if (trimmed.length > 0) data.message = trimmed;
+  return {
+    code: -32603,
+    message: 'Internal error',
+    data,
   };
 }
 
