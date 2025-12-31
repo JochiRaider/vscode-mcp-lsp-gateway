@@ -140,7 +140,9 @@ Mitigates: spoofing, unauthorized access.
 
 - Bearer tokens MUST be stored using VS Code SecretStorage (or an equivalent OS-backed secure store).
 - Tokens MUST NOT be stored in workspace settings, user settings, checked-in config files, logs, or diagnostics.
-- If no token is configured in the secure store, the server MUST refuse to start (fail closed).
+- The server MUST NOT run without at least one bearer token in SecretStorage.
+- If no token exists, the extension SHOULD auto-provision a high-entropy token into SecretStorage before starting.
+- If the SecretStorage value is malformed/unparseable, the extension MUST refuse to start and require explicit operator action (run “Clear Bearer Token(s)” and re-enable).
 
 Notes:
 
@@ -148,6 +150,7 @@ Notes:
 - TODO(verify): document the exact command(s) or UI entrypoint used to set tokens once implemented.
 - The extension provides interactive commands to manage tokens:
   - **“MCP LSP Gateway: Set Bearer Token(s)”**
+  - **“MCP LSP Gateway: Copy Codex config.toml (Token Inline)”**
   - **“MCP LSP Gateway: Clear Bearer Token(s)”**
 - Tokens SHOULD be high-entropy (for example, 32+ random bytes encoded as base64url or hex).
 
@@ -285,13 +288,19 @@ Mitigates: exfiltration paths, SSRF-like behaviors.
 
 ### 5.1 Token management
 
-- Configure at least one strong random bearer token using the extension’s secure token workflow (SecretStorage-backed).
-- Rotate tokens by adding the new token first, then removing the old token after clients switch.
-- Do not store tokens in shared config files committed to repositories.
+- Bearer tokens MUST be treated as secrets and MUST be managed via the extension’s SecretStorage-backed workflow.
+- On first enable in a trusted workspace, the extension MAY auto-provision a high-entropy bearer token if none exists in SecretStorage.
+- Rotate tokens by adding the new token first, then removing the old token after all clients have switched.
+- Do not store tokens in workspace settings, user settings, logs, or any shared configuration that is committed to repositories.
+- If you use a “copy config” convenience flow that embeds the token inline, treat the resulting `~/.codex/config.toml` as a secret:
+  - do not commit or share it
+  - restrict file permissions to the local user account where feasible
+  - avoid pasting the token into tickets, chat, or screenshots
 
 Client guidance:
 
-- Prefer environment variable based token injection (for example, clients that support `bearer_token_env_var`), instead of storing tokens directly in plaintext configuration files.
+- Prefer environment variable based token injection (for example, clients that support `bearer_token_env_var`) instead of storing tokens directly in plaintext configuration files.
+- If you must use plaintext token embedding for lowest friction, prefer short-lived tokens and rotate more frequently, and use the extension commands to clear and re-issue tokens as needed.
 
 ### 5.2 Origin allowlist
 

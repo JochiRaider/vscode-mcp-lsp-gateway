@@ -293,6 +293,27 @@ Body (tool payload is in `result.structuredContent`; `content` is optional and M
 
 - `{"jsonrpc":"2.0","id":"2","result":{"isError":false,"structuredContent":{...},"content":[]}}`
 
+### 8.4 Codex `config.toml` example (token inline)
+
+Paste into Codex’s config file (`~/.codex/config.toml` on macOS/Linux, `~\.codex\config.toml` on Windows):
+
+```toml
+# vscode-mcp-lsp-gateway (local-only)
+# Required MCP protocol version header: 2025-11-25
+[mcp_servers.vscode_mcp_lsp_gateway]
+url = "http://127.0.0.1:${PORT}/mcp"
+http_headers = { "Authorization" = "Bearer ${BEARER_TOKEN}", "MCP-Protocol-Version" = "2025-11-25", "Accept" = "application/json, text/event-stream", "Content-Type" = "application/json" }
+enabled = true
+startup_timeout_sec = 10
+tool_timeout_sec = 60
+```
+
+Notes:
+
+- `MCP-Protocol-Version: 2025-11-25` is **required post-init** (after `notifications/initialized`) and is **safe to send on all requests**, including `initialize`. This example includes it in `http_headers` so Codex will send it consistently.
+- `MCP-Session-Id` **cannot be preconfigured** in static `config.toml`. If sessions are enabled, the server returns `MCP-Session-Id` in the `initialize` HTTP response header, and the client must include `MCP-Session-Id: <value>` on all subsequent requests.
+- This token-inline example is lowest friction but stores a secret in plaintext on disk; treat the file as sensitive and do not commit or share it.
+
 ---
 
 ## 9. Contract references

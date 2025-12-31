@@ -30,7 +30,7 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 ### Security (fail-closed)
 
 - **Localhost-only bind**: must bind to `127.0.0.1` in v1; refuse to start otherwise.
-- **Fail closed on missing auth material**: if no bearer tokens are configured in SecretStorage, the server must not start (see `docs/SECURITY.md`).
+- Server must not run without a token; the extension may auto-provision a token in SecretStorage; malformed SecretStorage must fail closed. (see `docs/SECURITY.md`).
 - **Auth on every request**: `Authorization: Bearer <token>` required for all calls, including `initialize`.
 - **Origin allowlist**: if `Origin` is present and not allowlisted, reject.
 - **Workspace/URI gating on inputs and outputs**:
@@ -97,10 +97,11 @@ Notes:
 1. Launch the Extension Development Host (VS Code “Run Extension” flow).
 2. Configure/enable the server:
    - Set `mcpLspGateway.enabled` to `true` (default is `false`).
-3. Set bearer tokens (stored in SecretStorage; never in settings):
-   - Run command: **“MCP LSP Gateway: Set Bearer Token(s)”**
-4. Copy the endpoint URL:
-   - Run command: **“MCP LSP Gateway: Copy MCP Endpoint URL”**
+
+3. Generate/copy Codex client configuration (auto-provisions a token if needed):
+   - Run command: --“MCP LSP Gateway: Copy Codex config.toml (Token Inline)”--
+
+4. Paste the copied stanza into `~/.codex/config.toml` (Windows: `~\.codex\config.toml`).
 5. Verify protocol behavior against `docs/PROTOCOL.md` (headers, status codes, init lifecycle).
 
 If workspace is in Restricted Mode (untrusted), the server must not run.
@@ -132,6 +133,7 @@ Primary settings (machine-scoped):
 - `docs/CONTRACT.md` — tool catalog, canonicalization, ordering, paging, caps/timeouts, error taxonomy
 - `docs/SECURITY.md` — threat model + enforced controls and invariants
 - `docs/SCHEMA.md` - JSON Schemas for tool inputs and outputs, conventions, and change workflow
+- `docs/REPO_MAP.md` — File inventory + one-line summaries for fast repo navigation (informational; verify against code/tests)
 - `schemas/` — Ajv-validated input schemas (reject unknown fields; `additionalProperties: false`)
 - `src/` — VS Code extension + embedded local HTTP server + tool handlers
 - `test/` — unit/integration tests (must assert catalog + determinism + security invariants)
