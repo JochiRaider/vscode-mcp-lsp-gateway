@@ -67,7 +67,7 @@ export async function handleDiagnosticsDocument(
   try {
     raw = vscode.languages.getDiagnostics(docUri);
   } catch {
-    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/INTERNAL') };
   }
 
   const normalized = normalizeDiagnostics(raw, gated.value.uri);
@@ -116,7 +116,7 @@ function toolError(
 type SortableDiagnostic = ContractDiagnostic & Readonly<{ uri: string }>;
 
 export function normalizeDiagnostics(
-  diagnostics: readonly vscode.Diagnostic[],
+  diagnostics: readonly unknown[],
   canonicalUri: string,
 ): ContractDiagnostic[] {
   const out: SortableDiagnostic[] = [];
@@ -131,17 +131,17 @@ export function normalizeDiagnostics(
   return dedupeSortedByKey(withoutUri, canonicalDedupeKey);
 }
 
-function normalizeDiagnostic(
-  diag: vscode.Diagnostic,
-  canonicalUri: string,
-): SortableDiagnostic | undefined {
-  if (!diag || !(diag.range instanceof vscode.Range)) return undefined;
-  if (typeof diag.message !== 'string' || diag.message.length === 0) return undefined;
+function normalizeDiagnostic(diag: unknown, canonicalUri: string): SortableDiagnostic | undefined {
+  if (!diag || typeof diag !== 'object') return undefined;
+  const rec = diag as Record<string, unknown>;
 
-  const range = toContractRange(diag.range);
-  const severity = normalizeSeverity(diag.severity);
-  const code = normalizeDiagnosticCode(diag.code);
-  const source = normalizeOptionalString(diag.source);
+  const range = normalizeRangeLike(rec.range);
+  const message = normalizeMessage(rec.message);
+  if (!range || !message) return undefined;
+
+  const severity = normalizeSeverity(rec.severity);
+  const code = normalizeDiagnosticCode(rec.code);
+  const source = normalizeOptionalString(rec.source);
 
   const canonicalString = buildDiagnosticCanonicalString(
     canonicalUri,
@@ -149,7 +149,7 @@ function normalizeDiagnostic(
     severity,
     code,
     source,
-    diag.message,
+    message,
   );
 
   return {
@@ -159,7 +159,7 @@ function normalizeDiagnostic(
     ...(severity !== undefined ? { severity } : undefined),
     ...(code ? { code } : undefined),
     ...(source ? { source } : undefined),
-    message: diag.message,
+    message,
   };
 }
 
@@ -233,6 +233,34 @@ function normalizeDiagnosticCode(value: unknown): string | undefined {
 function normalizeOptionalString(value: unknown): string | undefined {
   if (typeof value !== 'string' || value.length === 0) return undefined;
   return value;
+}
+
+function normalizeMessage(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  return value;
+}
+
+function normalizeRangeLike(value: unknown): ContractRange | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  if (value instanceof vscode.Range) return toContractRange(value);
+  const rec = value as Record<string, unknown>;
+  const start = normalizePositionLike(rec.start);
+  const end = normalizePositionLike(rec.end);
+  if (!start || !end) return undefined;
+  return { start, end };
+}
+
+function normalizePositionLike(value: unknown): ContractPosition | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const rec = value as Record<string, unknown>;
+  const line = rec.line;
+  const character = rec.character;
+  if (!isNonNegativeInt(line) || !isNonNegativeInt(character)) return undefined;
+  return { line, character };
+}
+
+function isNonNegativeInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 function toContractRange(r: vscode.Range): ContractRange {

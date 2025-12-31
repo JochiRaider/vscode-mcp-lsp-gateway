@@ -9,6 +9,7 @@ import {
 } from '../../src/tools/handlers/diagnosticsWorkspace';
 import { MAX_ITEMS_NONPAGED } from '../../src/tools/handlers/diagnosticsDocument';
 import { computeRequestKey, encodeCursor, paginate } from '../../src/tools/paging/cursor';
+import { canonicalizeFileUri } from '../../src/workspace/uri';
 
 describe('diagnostics workspace normalization', () => {
   it('filters out-of-root groups and sorts by canonical uri', async () => {
@@ -62,6 +63,56 @@ describe('diagnostics workspace normalization', () => {
     expect(normalized.groups.length).to.equal(1);
     expect(normalized.groups[0].diagnostics.length).to.equal(MAX_ITEMS_NONPAGED);
     expect(normalized.groups[0].capped).to.equal(true);
+  });
+
+  it('accepts mixed diagnostic inputs and filters invalid entries', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+    const fileA = path.join(repoRoot, 'docs', 'CONTRACT.md');
+
+    const diagLike = {
+      range: { start: { line: 2, character: 0 }, end: { line: 2, character: 1 } },
+      message: 'ok',
+      severity: 1,
+    };
+
+    const invalid = { range: { start: { line: -1, character: 0 }, end: { line: 0, character: 1 } } };
+
+    const raw = [[vscode.Uri.file(fileA), [diagLike, invalid, 'nope']]];
+    const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, allowedRootsRealpaths);
+
+    expect(normalized.groups.length).to.equal(1);
+    expect(normalized.groups[0].diagnostics.length).to.equal(1);
+    expect(normalized.groups[0].diagnostics[0].message).to.equal('ok');
+  });
+
+  it('skips entries when canonicalization throws', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+
+    const fileA = path.join(repoRoot, 'docs', 'CONTRACT.md');
+    const fileB = path.join(repoRoot, 'docs', 'SECURITY.md');
+
+    const diag = new vscode.Diagnostic(
+      new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1)),
+      'msg',
+      vscode.DiagnosticSeverity.Warning,
+    );
+
+    const raw = [
+      [vscode.Uri.file(fileA), [diag]],
+      [vscode.Uri.file(fileB), [diag]],
+    ];
+
+    const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, allowedRootsRealpaths, (uri) => {
+      if (uri === vscode.Uri.file(fileA).toString()) {
+        throw new Error('boom');
+      }
+      return canonicalizeFileUri(uri);
+    });
+
+    const uris = normalized.groups.map((g) => g.uri);
+    expect(uris).to.deep.equal([vscode.Uri.file(fileB).toString()]);
   });
 });
 

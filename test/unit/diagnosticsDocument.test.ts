@@ -43,6 +43,36 @@ describe('diagnostics document normalization', () => {
     expect(normalized.find((d) => d.message === 'msg5')?.code).to.equal(undefined);
   });
 
+  it('accepts diagnostic-like objects and skips invalid entries', () => {
+    const diagLike = {
+      range: { start: { line: 1, character: 2 }, end: { line: 1, character: 3 } },
+      message: 'ok',
+      severity: 2,
+      code: 12,
+      source: 'lint',
+    };
+
+    const invalidRange = {
+      range: { start: { line: -1, character: 0 }, end: { line: 0, character: 1 } },
+      message: 'bad',
+    };
+
+    const invalidMessage = {
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+      message: '',
+    };
+
+    const normalized = normalizeDiagnostics(
+      [diagLike, invalidRange, invalidMessage, 'nope'],
+      'file:///abs/path/to/file.ts',
+    );
+
+    expect(normalized.length).to.equal(1);
+    expect(normalized[0].message).to.equal('ok');
+    expect(normalized[0].code).to.equal('12');
+    expect(normalized[0].source).to.equal('lint');
+  });
+
   it('sorts deterministically and dedupes exact duplicates', () => {
     const rangeA = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 1));
     const rangeB = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1));

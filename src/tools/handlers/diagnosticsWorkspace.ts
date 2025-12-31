@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
-import { computeRequestKey, paginate, validateCursor } from '../paging/cursor.js';
+import { computeRequestKey, paginate } from '../paging/cursor.js';
 import { enforceDiagnosticsCap, normalizeDiagnostics } from './diagnosticsDocument.js';
 
 const TOOL_NAME = 'vscode.lsp.diagnostics.workspace' as const;
@@ -50,8 +50,6 @@ export async function handleDiagnosticsWorkspace(
   deps: DiagnosticsWorkspaceDeps,
 ): Promise<ToolResult> {
   const requestKey = computeRequestKey(TOOL_NAME, []);
-  const cursorChecked = validateCursor(args.cursor, requestKey);
-  if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
@@ -59,7 +57,7 @@ export async function handleDiagnosticsWorkspace(
   try {
     raw = vscode.languages.getDiagnostics();
   } catch {
-    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/INTERNAL') };
   }
 
   const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, deps.allowedRootsRealpaths);
@@ -95,18 +93,27 @@ type NormalizedGroups = Readonly<{
   groups: readonly FileDiagnosticsGroup[];
 }>;
 
+type CanonicalizeResult = Awaited<ReturnType<typeof canonicalizeFileUri>>;
+type CanonicalizeFn = (uri: string) => Promise<CanonicalizeResult>;
+
 export async function normalizeWorkspaceDiagnosticsGroups(
   raw: unknown,
   allowedRootsRealpaths: readonly string[],
+  canonicalize: CanonicalizeFn = canonicalizeFileUri,
 ): Promise<NormalizedGroups> {
-  const byUri = new Map<string, vscode.Diagnostic[]>();
+  const byUri = new Map<string, unknown[]>();
   const entries = Array.isArray(raw) ? raw : [];
 
   for (const entry of entries) {
     if (!isDiagnosticsTuple(entry)) continue;
     const [uri, diagnostics] = entry;
 
-    const canon = await canonicalizeFileUri(uri.toString());
+    let canon: CanonicalizeResult;
+    try {
+      canon = await canonicalize(uri.toString());
+    } catch {
+      continue;
+    }
     if (!canon.ok) continue;
     if (!isRealPathAllowed(canon.value.realPath, allowedRootsRealpaths)) continue;
 
@@ -142,14 +149,14 @@ function compareGroupsByUri(a: FileDiagnosticsGroup, b: FileDiagnosticsGroup): n
   return a.uri < b.uri ? -1 : 1;
 }
 
-function isDiagnosticsTuple(value: unknown): value is readonly [vscode.Uri, vscode.Diagnostic[]] {
+function isDiagnosticsTuple(value: unknown): value is readonly [vscode.Uri, unknown[]] {
   if (!Array.isArray(value) || value.length < 2) return false;
   const tuple = value as unknown[];
   const uri = tuple[0];
   const diagnostics = tuple[1];
   if (!(uri instanceof vscode.Uri)) return false;
   if (!Array.isArray(diagnostics)) return false;
-  return diagnostics.every((diag) => diag instanceof vscode.Diagnostic);
+  return true;
 }
 
 function stripGroupCapped(group: FileDiagnosticsGroup): Readonly<{
