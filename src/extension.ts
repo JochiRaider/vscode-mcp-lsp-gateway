@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import { createMcpPostHandler } from './mcp/handler.js';
 import { SchemaRegistry } from './tools/schemaRegistry.js';
 import { HttpServer } from './server/httpServer.js';
+import { ensureBearerTokenPresent, parseTokenSecret } from './server/tokenSecret.js';
+import { buildCodexConfigToml } from './util/codexConfigToml.js';
 import { stableJsonStringify } from './util/stableStringify.js';
 import { computeAllowedRoots } from './workspace/roots.js';
 
@@ -172,6 +174,50 @@ async function copyEndpointUrlCommand(): Promise<void> {
   void vscode.window.showInformationMessage('Copied MCP endpoint URL to clipboard.');
 }
 
+async function copyCodexConfigTomlCommand(context: vscode.ExtensionContext): Promise<void> {
+  const { settings, problems } = readAndValidateSettings();
+  if (!settings) {
+    void vscode.window.showErrorMessage(
+      `Cannot copy Codex config.toml: invalid configuration. ${problems.join(' ')}`,
+    );
+    return;
+  }
+
+  const tokenEnsure = await ensureBearerTokenPresent(context.secrets, settings.secretStorageKey);
+  if (!tokenEnsure.ok) {
+    void vscode.window.showErrorMessage(
+      `${tokenEnsure.reason} Run "MCP LSP Gateway: Clear Bearer Token(s)" and retry.`,
+    );
+    return;
+  }
+
+  const raw = await context.secrets.get(settings.secretStorageKey);
+  const parsed = parseTokenSecret(raw);
+  if (parsed.kind !== 'valid' || parsed.tokens.length === 0) {
+    void vscode.window.showErrorMessage(
+      'No valid bearer tokens found. Run "MCP LSP Gateway: Set Bearer Token(s)" and retry.',
+    );
+    return;
+  }
+
+  const token = parsed.tokens[0];
+  if (!token) {
+    void vscode.window.showErrorMessage(
+      'No valid bearer tokens found. Run "MCP LSP Gateway: Set Bearer Token(s)" and retry.',
+    );
+    return;
+  }
+
+  const toml = buildCodexConfigToml({
+    bindAddress: settings.bindAddress,
+    port: settings.port,
+    endpointPath: settings.endpointPath,
+    token,
+  });
+  await vscode.env.clipboard.writeText(toml);
+  void vscode.window.showInformationMessage('Copied Codex config.toml to clipboard.');
+}
+
 class ExtensionRuntime {
   public constructor(private readonly context: vscode.ExtensionContext) {}
   private readonly output = vscode.window.createOutputChannel(OUT_CHAN_NAME);
@@ -207,6 +253,26 @@ class ExtensionRuntime {
     if (!settings.enabled) {
       await this.stopServer();
       return;
+    }
+
+    const tokenEnsure = await ensureBearerTokenPresent(
+      this.context.secrets,
+      settings.secretStorageKey,
+    );
+    if (!tokenEnsure.ok) {
+      await this.stopServer();
+      void vscode.window.showErrorMessage(
+        `${tokenEnsure.reason} Run "MCP LSP Gateway: Clear Bearer Token(s)" and re-enable.`,
+      );
+      this.output.appendLine(
+        `[error] Bearer token SecretStorage value is malformed; server will not start.`,
+      );
+      return;
+    }
+    if (tokenEnsure.created) {
+      this.output.appendLine(
+        '[info] Auto-provisioned bearer token in SecretStorage (token not displayed).',
+      );
     }
 
     const startKey = stableJsonStringify({
@@ -335,6 +401,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
     vscode.commands.registerCommand('mcpLspGateway.copyEndpointUrl', () =>
       copyEndpointUrlCommand(),
+    ),
+    vscode.commands.registerCommand('mcpLspGateway.copyCodexConfigToml', () =>
+      copyCodexConfigTomlCommand(context),
     ),
   );
 

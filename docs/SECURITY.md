@@ -141,7 +141,7 @@ Mitigates: spoofing, unauthorized access.
 - Bearer tokens MUST be stored using VS Code SecretStorage (or an equivalent OS-backed secure store).
 - Tokens MUST NOT be stored in workspace settings, user settings, checked-in config files, logs, or diagnostics.
 - The server MUST NOT run without at least one bearer token in SecretStorage.
-- If no token exists, the extension SHOULD auto-provision a high-entropy token into SecretStorage before starting.
+- If no token exists (or the stored token list is empty), the extension SHOULD auto-provision a high-entropy token into SecretStorage before starting.
 - If the SecretStorage value is malformed/unparseable, the extension MUST refuse to start and require explicit operator action (run “Clear Bearer Token(s)” and re-enable).
 
 Notes:

@@ -312,6 +312,8 @@ Notes:
 
 - `MCP-Protocol-Version: 2025-11-25` is **required post-init** (after `notifications/initialized`) and is **safe to send on all requests**, including `initialize`. This example includes it in `http_headers` so Codex will send it consistently.
 - `MCP-Session-Id` **cannot be preconfigured** in static `config.toml`. If sessions are enabled, the server returns `MCP-Session-Id` in the `initialize` HTTP response header, and the client must include `MCP-Session-Id: <value>` on all subsequent requests.
+- On first enable, the extension may auto-provision a high-entropy bearer token in SecretStorage. Use **“MCP LSP Gateway: Set Bearer Token(s)”** if you want to set or rotate tokens explicitly.
+- You can also use **“MCP LSP Gateway: Copy Codex config.toml (Token Inline)”** to copy a ready-to-paste stanza with the required headers.
 - This token-inline example is lowest friction but stores a secret in plaintext on disk; treat the file as sensitive and do not commit or share it.
 
 ---

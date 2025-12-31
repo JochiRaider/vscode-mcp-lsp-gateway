@@ -40,7 +40,8 @@
     "onStartupFinished",
     "onCommand:mcpLspGateway.setBearerTokens",
     "onCommand:mcpLspGateway.clearBearerTokens",
-    "onCommand:mcpLspGateway.copyEndpointUrl"
+    "onCommand:mcpLspGateway.copyEndpointUrl",
+    "onCommand:mcpLspGateway.copyCodexConfigToml"
   ],
   "extensionKind": [
     "workspace"
@@ -64,6 +65,10 @@
       {
         "command": "mcpLspGateway.copyEndpointUrl",
         "title": "MCP LSP Gateway: Copy MCP Endpoint URL"
+      },
+      {
+        "command": "mcpLspGateway.copyCodexConfigToml",
+        "title": "MCP LSP Gateway: Copy Codex config.toml (Token Inline)"
       }
     ],
     "configuration": {

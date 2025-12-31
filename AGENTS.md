@@ -101,6 +101,8 @@ Notes:
 3. Generate/copy Codex client configuration (auto-provisions a token if needed):
    - Run command: --“MCP LSP Gateway: Copy Codex config.toml (Token Inline)”--
 
+If you want to set or rotate a known token explicitly, run --“MCP LSP Gateway: Set Bearer Token(s)”-- before copying config.
+
 4. Paste the copied stanza into `~/.codex/config.toml` (Windows: `~\.codex\config.toml`).
 5. Verify protocol behavior against `docs/PROTOCOL.md` (headers, status codes, init lifecycle).
 
