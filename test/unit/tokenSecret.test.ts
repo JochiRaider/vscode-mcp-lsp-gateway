@@ -1,24 +1,33 @@
 import { expect } from 'chai';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { ensureBearerTokenPresent, parseTokenSecret } from '../../src/server/tokenSecret';
 
 class FakeSecrets implements vscode.SecretStorage {
   public stored: string | undefined;
   public storeCalls = 0;
+  private readonly emitter = new vscode.EventEmitter<vscode.SecretStorageChangeEvent>();
+
+  public readonly onDidChange = this.emitter.event;
 
   public constructor(private readonly raw: string | undefined) {}
 
-  public get(): Promise<string | undefined> {
+  public keys(): Promise<string[]> {
+    return Promise.resolve([]);
+  }
+
+  public get(_key: string): Promise<string | undefined> {
     return Promise.resolve(this.raw);
   }
 
   public store(_key: string, value: string): Promise<void> {
     this.storeCalls += 1;
     this.stored = value;
+    this.emitter.fire({ key: _key });
     return Promise.resolve();
   }
 
-  public delete(): Promise<void> {
+  public delete(key: string): Promise<void> {
+    if (key) this.emitter.fire({ key });
     return Promise.resolve();
   }
 }
@@ -73,7 +82,10 @@ describe('ensureBearerTokenPresent', () => {
     expect(secrets.stored).to.be.a('string');
     const stored = JSON.parse(secrets.stored ?? '[]') as string[];
     expect(stored).to.have.length(1);
-    expect(stored[0].length).to.be.greaterThan(31);
+    const first = stored[0];
+    expect(first).to.not.equal(undefined);
+    if (!first) throw new Error('Missing stored token');
+    expect(first.length).to.be.greaterThan(31);
   });
 
   it('auto-provisions when secret is an empty array', async () => {

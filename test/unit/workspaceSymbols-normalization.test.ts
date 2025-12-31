@@ -71,11 +71,16 @@ describe('workspace symbols normalization', () => {
 
     const normalized = await normalizeWorkspaceSymbols(raw, allowedRootsRealpaths, canonicalize);
     expect(normalized.map((item) => item.name)).to.deep.equal(['Alpha', 'Beta']);
-    expect(normalized[0].location).to.deep.equal({
+    const first = normalized[0];
+    const second = normalized[1];
+    expect(first).to.not.equal(undefined);
+    expect(second).to.not.equal(undefined);
+    if (!first || !second) throw new Error('Missing normalized symbols');
+    expect(first.location).to.deep.equal({
       uri: uri.toString(),
       range: { start: { line: 1, character: 0 }, end: { line: 1, character: 3 } },
     });
-    expect(normalized[1].location).to.deep.equal({
+    expect(second.location).to.deep.equal({
       uri: uri.toString(),
       range: { start: { line: 2, character: 0 }, end: { line: 2, character: 2 } },
     });

@@ -27,7 +27,7 @@ describe('hover truncation', () => {
         summary: 'Hover available.',
       },
       content: [{ type: 'text', text: 'Hover available.' }],
-    };
+    } as const;
 
     const maxResponseBytes = 1200;
     const measured = (candidate: unknown) =>
@@ -45,7 +45,10 @@ describe('hover truncation', () => {
       contents: Array<{ value: string }>;
       summary?: string;
     };
-    expect(structured.contents[0].value.length).to.be.lessThan(longValue.length);
+    const first = structured.contents[0];
+    expect(first).to.not.equal(undefined);
+    if (!first) throw new Error('Missing hover content');
+    expect(first.value.length).to.be.lessThan(longValue.length);
     expect(structured.summary ?? '').to.include('Truncated');
   });
 
@@ -59,7 +62,7 @@ describe('hover truncation', () => {
         summary: 'Hover available.',
       },
       content: [{ type: 'text', text: 'Hover available.' }],
-    };
+    } as const;
 
     const maxResponseBytes = 900;
     const measured = (candidate: unknown) =>
@@ -72,7 +75,10 @@ describe('hover truncation', () => {
     const structured = truncated.result.structuredContent as {
       contents: Array<{ value: string }>;
     };
-    const truncatedValue = structured.contents[0].value;
+    const first = structured.contents[0];
+    expect(first).to.not.equal(undefined);
+    if (!first) throw new Error('Missing hover content');
+    const truncatedValue = first.value;
     const originalCodepoints = Array.from(longValue);
     const truncatedCodepoints = Array.from(truncatedValue);
     expect(truncatedValue).to.equal(

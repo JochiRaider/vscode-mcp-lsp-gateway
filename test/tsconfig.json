@@ -2,8 +2,9 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "..",
     "types": ["node", "mocha"],
     "typeRoots": ["./types", "../node_modules/@types"],
     "strict": true,

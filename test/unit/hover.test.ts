@@ -4,15 +4,15 @@ import { normalizeHoverContents, pickStableRange } from '../../src/tools/handler
 
 describe('hover normalization', () => {
   it('normalizes and sorts hover contents deterministically', () => {
-    const hoverA = new vscode.Hover(
-      [new vscode.MarkdownString('Bravo'), { kind: 'plaintext', value: 'Alpha' }, 'Zulu'],
-      new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 2)),
-    );
+    const hoverA = {
+      contents: [new vscode.MarkdownString('Bravo'), { kind: 'plaintext', value: 'Alpha' }, 'Zulu'],
+      range: new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 2)),
+    };
 
-    const hoverB = new vscode.Hover(
-      ['Zulu', { kind: 'plaintext', value: 'Alpha' }, new vscode.MarkdownString('Bravo')],
-      new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 2)),
-    );
+    const hoverB = {
+      contents: ['Zulu', { kind: 'plaintext', value: 'Alpha' }, new vscode.MarkdownString('Bravo')],
+      range: new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 2)),
+    };
 
     const normalizedA = normalizeHoverContents([hoverA]);
     const normalizedB = normalizeHoverContents([hoverB]);
