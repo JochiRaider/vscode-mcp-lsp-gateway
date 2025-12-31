@@ -32,6 +32,28 @@ describe('hover normalization', () => {
     const normalized = normalizeHoverContents([hover]);
     expect(normalized).to.deep.equal([{ kind: 'markdown', value: '```ts\nconst x = 1;\n```' }]);
   });
+
+  it('accepts hover-like objects with contents', () => {
+    const hoverLike = {
+      contents: ['Alpha', { kind: 'plaintext', value: 'Beta' }],
+    };
+    const normalized = normalizeHoverContents([hoverLike]);
+    expect(normalized).to.deep.equal([
+      { kind: 'markdown', value: 'Alpha' },
+      { kind: 'plaintext', value: 'Beta' },
+    ]);
+  });
+
+  it('dedupes identical contents deterministically', () => {
+    const hoverLike = {
+      contents: ['Alpha', 'Alpha', { kind: 'plaintext', value: 'Beta' }, 'Alpha'],
+    };
+    const normalized = normalizeHoverContents([hoverLike]);
+    expect(normalized).to.deep.equal([
+      { kind: 'markdown', value: 'Alpha' },
+      { kind: 'plaintext', value: 'Beta' },
+    ]);
+  });
 });
 
 describe('hover ranges', () => {

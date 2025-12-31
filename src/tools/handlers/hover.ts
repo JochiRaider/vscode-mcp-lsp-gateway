@@ -16,6 +16,7 @@ const E_INTERNAL = -32603;
 type ContractPosition = Readonly<{ line: number; character: number }>;
 type ContractRange = Readonly<{ start: ContractPosition; end: ContractPosition }>;
 type HoverContent = Readonly<{ kind: 'markdown' | 'plaintext'; value: string }>;
+type HoverLike = Readonly<{ contents: unknown; range?: unknown }>;
 
 export type HoverInput = Readonly<{
   uri: string;
@@ -45,7 +46,7 @@ export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<To
     }),
   );
 
-  if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
+  if (!gated.ok) return { ok: false, error: gateError(gated.code) };
 
   const docUri = vscode.Uri.parse(gated.value.uri, true);
   const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
@@ -78,7 +79,7 @@ export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<To
   return { ok: true, result };
 }
 
-function invalidParamsError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
+function gateError(code: WorkspaceGateErrorCode): JsonRpcErrorObject {
   return {
     code: -32602,
     message: 'Invalid params',
@@ -110,15 +111,15 @@ async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocu
   return await vscode.workspace.openTextDocument(uri);
 }
 
-function normalizeHoverArray(raw: unknown): vscode.Hover[] {
+function normalizeHoverArray(raw: unknown): HoverLike[] {
   if (!raw) return [];
   if (Array.isArray(raw)) {
-    return raw.filter((item): item is vscode.Hover => item instanceof vscode.Hover);
+    return raw.filter(isHoverLike);
   }
-  return raw instanceof vscode.Hover ? [raw] : [];
+  return isHoverLike(raw) ? [raw] : [];
 }
 
-export function normalizeHoverContents(hovers: readonly vscode.Hover[]): HoverContent[] {
+export function normalizeHoverContents(hovers: readonly HoverLike[]): HoverContent[] {
   const out: HoverContent[] = [];
   for (const hover of hovers) {
     const items = normalizeToArray(hover.contents);
@@ -128,7 +129,7 @@ export function normalizeHoverContents(hovers: readonly vscode.Hover[]): HoverCo
     }
   }
 
-  return sortHoverContents(out);
+  return dedupeSortedHoverContents(sortHoverContents(out));
 }
 
 function normalizeHoverContentItem(item: unknown): HoverContent | undefined {
@@ -194,7 +195,7 @@ function normalizeToArray(raw: unknown): unknown[] {
   return [raw];
 }
 
-export function pickStableRange(hovers: readonly vscode.Hover[]): ContractRange | undefined {
+export function pickStableRange(hovers: readonly HoverLike[]): ContractRange | undefined {
   let best: ContractRange | undefined;
   for (const hover of hovers) {
     if (!(hover.range instanceof vscode.Range)) continue;
@@ -220,4 +221,20 @@ function compareRange(a: ContractRange, b: ContractRange): number {
 function comparePosition(a: ContractPosition, b: ContractPosition): number {
   if (a.line !== b.line) return a.line - b.line;
   return a.character - b.character;
+}
+
+function isHoverLike(value: unknown): value is HoverLike {
+  if (!value || typeof value !== 'object') return false;
+  return Object.prototype.hasOwnProperty.call(value, 'contents');
+}
+
+function dedupeSortedHoverContents(contents: HoverContent[]): HoverContent[] {
+  const out: HoverContent[] = [];
+  let prev: HoverContent | undefined;
+  for (const item of contents) {
+    if (prev && item.kind === prev.kind && item.value === prev.value) continue;
+    out.push(item);
+    prev = item;
+  }
+  return out;
 }
