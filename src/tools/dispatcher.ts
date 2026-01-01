@@ -21,6 +21,7 @@ import {
 } from './catalog.js';
 import type { SchemaRegistry } from './schemaRegistry.js';
 import type { ToolRuntime } from './runtime/toolRuntime.js';
+import { stableJsonStringify } from '../util/stableStringify.js';
 
 // Handlers
 import { handleDefinition, type DefinitionInput } from './handlers/definition.js';
@@ -158,7 +159,10 @@ export async function dispatchToolCall(
   }
 
   const normalizedArgs = normalizeValidatedArgs(validated.value, deps.maxItemsPerPage);
-  const raced = await withTimeout(handler(normalizedArgs, deps), deps.requestTimeoutMs);
+  const callKey = `${toolName}:${stableJsonStringify(normalizedArgs)}`;
+  const raced = await deps.toolRuntime.singleflight(callKey, () =>
+    withTimeout(handler(normalizedArgs, deps), deps.requestTimeoutMs),
+  );
   if (raced.timedOut) {
     return { ok: false, error: capExceededError('Request timed out.') };
   }
