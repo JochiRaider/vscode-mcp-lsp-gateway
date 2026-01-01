@@ -1,0 +1,27 @@
+# Core Files
+
+- AGENTS.md
+- docs/CONTRACT.md
+- docs/PROTOCOL.md
+- docs/SCHEMA.md
+- docs/SECURITY.md
+- src/extension.ts
+- src/mcp/handler.ts
+- src/mcp/jsonrpc.ts
+- src/server/auth.ts
+- src/server/httpServer.ts
+- src/server/origin.ts
+- src/server/router.ts
+- src/server/session.ts
+- src/server/tokenSecret.ts
+- src/tools/catalog.ts
+- src/tools/dispatcher.ts
+- src/tools/paging/cursor.ts
+- src/tools/runtime/lruCache.ts
+- src/tools/runtime/toolRuntime.ts
+- src/tools/schemaRegistry.ts
+- src/tools/sorting.ts
+- src/tools/truncate.ts
+- src/util/responseSize.ts
+- src/workspace/roots.ts
+- src/workspace/uri.ts

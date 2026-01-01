@@ -3,14 +3,15 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": "../out/test",
+    "types": ["node", "mocha"],
 
     // Keep ESM semantics so imports like "../../mcp/jsonrpc.js" resolve during TS compile.
     // (This repo uses .js specifiers in TS.)
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
-    // Avoid emitting under out/test/test/** due to includes pointing at ../test/**.
-    "rootDir": "."
+    // Keep root above src + test so imports from src don't emit back into src/.
+    "rootDir": ".."
   },
   "include": ["./**/*.ts"]
 }

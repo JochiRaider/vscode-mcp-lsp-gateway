@@ -179,10 +179,11 @@
     "vscode:prepublish": "npm run package",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix",
+    "clean:src-artifacts": "node scripts/clean-src-artifacts.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "compile-tests": "tsc -p test/tsconfig.json && tsc -p test/tsconfig.src.json",
-    "pretest": "npm run compile && npm run lint && npm run format:check && npm run compile-tests",
+    "pretest": "npm run clean:src-artifacts && npm run compile && npm run lint && npm run format:check && npm run compile-tests",
     "test": "vscode-test",
     "package:vsix": "npx @vscode/vsce package --no-dependencies"
   },

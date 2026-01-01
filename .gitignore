@@ -40,6 +40,8 @@ coverage/
 dist/
 out/
 *.vsix
+src/**/*.js
+src/**/*.js.map
 
 ################################################################################
 # VS Code extension test artifacts

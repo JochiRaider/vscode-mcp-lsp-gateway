@@ -10,6 +10,7 @@
     "types": ["node"],
 
     "sourceMap": true,
+    "noEmit": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
 

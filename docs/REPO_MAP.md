@@ -2,8 +2,9 @@
 
 ## Scope
 
-- This map reflects the repo tree provided in this prompt.
-- Summaries use file contents only when available in this ChatGPT Project; otherwise TODO placeholders.
+- This map reflects tracked files in the repository.
+- Summaries use file contents when available; otherwise TODO placeholders.\
+- Reflects .gitignore for file tracking
 
 ## Context by file
 
@@ -11,6 +12,7 @@
 - `.gitignore` — Ignore dependencies, build outputs, caches, VS Code artifacts, and OS noise.
 - `.prettierignore` — Prettier ignore list for build outputs, node_modules, coverage, and VSIX.
 - `.prettierrc.json` — Prettier configuration with 100 width, single quotes, trailing commas, semicolons.
+- `.vscode-test.mjs` — VS Code test CLI config pointing at compiled tests and extension root.
 - `.vscodeignore` — VS Code extension packaging exclude list for sources and build artifacts.
 - `AGENTS.md` — Contributor guide: contracts, security invariants, validation commands, and workflow expectations.
 - `LICENSE` — MIT License granting broad permissions with warranty disclaimer and liability limits.
@@ -19,7 +21,8 @@
 - `docs/PROTOCOL.md` — Streamable HTTP transport contract: endpoint, headers, status codes, init lifecycle.
 - `docs/SCHEMA.md` — Schema governance for v1 tools: dialect, layout, invariants, and change workflow.
 - `docs/SECURITY.md` — Threat model and enforced controls for localhost-only, read-only MCP gateway.
-- `docs/repo_map.md` — Auto-generated repository map with tree, counts, and notable anchors.
+- `docs/REPO_MAP.md` — Repository map of tracked files with one-line summaries.
+- `esbuild.js` — esbuild script for bundling the extension in build or watch mode.
 - `eslint.config.mjs` — ESLint flat configuration for TypeScript tests and sources with Prettier.
 - `package-lock.json` — npm lockfile capturing resolved dependency versions and integrity hashes.
 - `package.json` — VS Code extension manifest: commands, settings, scripts, and dependencies.
@@ -46,46 +49,55 @@
 - `src/server/origin.ts` — Origin allowlist check: exact-match when Origin header present, otherwise allow.
 - `src/server/router.ts` — Transport router enforcing auth, origin, media types, size caps, and POST-only.
 - `src/server/session.ts` — Session store for MCP-Session-Id: minting, deterministic eviction, and enforcement.
+- `src/server/tokenSecret.ts` — Parses SecretStorage token arrays and auto-provisions bearer tokens.
 - `src/tools/catalog.ts` — Defines v1 tool names, descriptions, and builds tools/list entries with schemas.
 - `src/tools/dispatcher.ts` — Routes tool calls, validates via schemas, enforces timeouts, normalizes ToolCallResult.
-- `src/tools/handlers/ (truncated in tree; do not enumerate beyond what is listed)` — Tool handlers for v1 tools: normalization, gating, and provider calls.
+- `src/tools/handlers/_unimplemented.ts` — Guard rail handler for tools that must not be called in v1.
+- `src/tools/handlers/definition.ts` — Definition tool handler: provider call, normalization, gating, and caps.
+- `src/tools/handlers/diagnosticsDocument.ts` — Document diagnostics handler: collection fetch, normalization, caps.
+- `src/tools/handlers/diagnosticsWorkspace.ts` — Workspace diagnostics handler: paging, grouping, and caps.
+- `src/tools/handlers/documentSymbols.ts` — Document symbols handler: flattening, normalization, and caps.
+- `src/tools/handlers/hover.ts` — Hover handler: content normalization, truncation, and range selection.
+- `src/tools/handlers/references.ts` — References handler: normalization, raw cap checks, and gating.
+- `src/tools/handlers/workspaceSymbols.ts` — Workspace symbols handler: query validation, paging, and gating.
 - `src/tools/ids.ts` — Generates stable sha256 identifiers from canonical strings for tool outputs.
-- `src/tools/paging/ (truncated in tree; do not enumerate beyond what is listed)` — Cursor encoding, validation, and deterministic pagination helpers for paged tools.
+- `src/tools/paging/cursor.ts` — Cursor encoding/decoding with deterministic slicing and validation.
+- `src/tools/runtime/lruCache.ts` — Size-capped LRU cache with TTL for deterministic paging caches.
+- `src/tools/runtime/toolRuntime.ts` — Tool runtime with singleflight and shared paged-result cache.
 - `src/tools/schemaRegistry.ts` — Loads and compiles tool input/output schemas with Ajv; deterministic validation errors.
 - `src/tools/sorting.ts` — Stable sorting and dedupe helpers for locations, symbols, and diagnostics.
 - `src/tools/truncate.ts` — Deterministic hover truncation helpers enforcing fragment caps and response byte limits.
+- `src/util/codexConfigToml.ts` — Builds deterministic Codex config.toml stanzas with token inline.
 - `src/util/responseSize.ts` — UTF-8 and JSON byte length helpers for response size enforcement.
 - `src/util/stableStringify.ts` — Stable JSON stringify wrapper using fast-stable-stringify for dedupe keys.
 - `src/workspace/roots.ts` — Computes allowed filesystem roots from workspace folders and additional roots, realpath-canonicalized.
 - `src/workspace/uri.ts` — Canonicalizes and gates file URIs using realpath resolution and allowed roots.
 - `test/tsconfig.json` — TypeScript configuration for compiling tests with CommonJS and Mocha types.
+- `test/tsconfig.src.json` — Test-only TS config targeting source emit under out/test.
 - `test/types/vscode.d.ts` — Minimal VS Code type stubs for tests and compilation.
+- `test/unit/codexConfigToml.test.ts` — Unit tests for deterministic Codex config TOML generation.
 - `test/unit/cursor.test.ts` — Unit tests for cursor encoding, validation, pagination, and cap errors.
+- `test/unit/definition-normalization.test.ts` — Unit tests for definition normalization and position validation.
 - `test/unit/diagnosticsDocument.test.ts` — Unit tests for document diagnostics normalization, ids, caps, and gating.
 - `test/unit/diagnosticsWorkspace.test.ts` — Unit tests for workspace diagnostics grouping, filtering, paging, and caps.
-- `test/unit/dispatcher.test.js` — Compiled JavaScript for dispatcher unit tests.
-- `test/unit/dispatcher.test.js.map` — Source map for compiled dispatcher unit tests.
 - `test/unit/dispatcher.test.ts` — Unit test ensuring dispatcher rejects unknown tool names with INVALID_PARAMS.
 - `test/unit/documentSymbols.test.ts` — Unit tests for document symbol flattening, normalization, and cap enforcement.
 - `test/unit/hover.test.ts` — Unit tests for hover normalization, sorting, MarkedString formatting, and range selection.
-- `test/unit/httpServer-auth.test.js` — Compiled JavaScript for HTTP server auth unit tests.
-- `test/unit/httpServer-auth.test.js.map` — Source map for compiled HTTP server auth unit tests.
 - `test/unit/httpServer-auth.test.ts` — Unit test ensuring server refuses start without configured bearer tokens.
 - `test/unit/ids.test.ts` — Unit tests for stable ID generation and sha256 format.
-- `test/unit/redact.test.js` — Compiled JavaScript for redaction unit tests.
-- `test/unit/redact.test.js.map` — Source map for compiled redaction unit tests.
+- `test/unit/lruCache.test.ts` — Unit tests for LRU eviction, TTL, and size caps.
+- `test/unit/mcp-handler-responseSize.test.ts` — Unit test for response size cap behavior in MCP handler.
 - `test/unit/redact.test.ts` — Unit tests for redacting tokens and session IDs in logs and headers.
+- `test/unit/references-normalization.test.ts` — Unit tests for reference normalization, gating, and raw caps.
 - `test/unit/responseSize.test.ts` — Unit tests for response size helpers and hover truncation behavior.
-- `test/unit/router-boundary.test.js` — Compiled JavaScript for router boundary unit tests.
-- `test/unit/router-boundary.test.js.map` — Source map for compiled router boundary unit tests.
 - `test/unit/router-boundary.test.ts` — Unit tests for router boundaries: auth, origin checks, and header allowlist.
 - `test/unit/sorting.test.ts` — Unit tests for sorting and dedupe helpers for locations and diagnostics.
-- `test/unit/stableStringify.test.js` — Compiled JavaScript for stableStringify unit tests.
-- `test/unit/stableStringify.test.js.map` — Source map for compiled stableStringify unit tests.
 - `test/unit/stableStringify.test.ts` — Unit tests for stable JSON stringify ordering of objects and arrays.
-- `test/unit/toolsList-schemas.test.js` — Compiled JavaScript for tools/list schema unit tests.
-- `test/unit/toolsList-schemas.test.js.map` — Source map for compiled tools/list schema unit tests.
+- `test/unit/tokenSecret.test.ts` — Unit tests for SecretStorage token parsing and auto-provision.
+- `test/unit/toolRuntime.test.ts` — Unit tests for ToolRuntime singleflight promise sharing.
 - `test/unit/toolsList-schemas.test.ts` — Unit tests ensuring tools/list includes input and output schemas for v1 tools.
+- `test/unit/workspaceSymbols-normalization.test.ts` — Unit tests for workspace symbol normalization and query validation.
+- `tsconfig.eslint.json` — ESLint TypeScript project config covering src/test and root TS files.
 - `tsconfig.json` — TypeScript compiler configuration for src build output, strict NodeNext ES2022.
 
 ## Update rule

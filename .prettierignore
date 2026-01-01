@@ -3,3 +3,5 @@ out
 node_modules
 coverage
 *.vsix
+src/**/*.js
+src/**/*.js.map
