@@ -9,8 +9,8 @@ import {
   MAX_ITEMS_NONPAGED,
   normalizeDiagnostics,
   handleDiagnosticsDocument,
-} from '../../src/tools/handlers/diagnosticsDocument';
-import { stableIdFromCanonicalString } from '../../src/tools/ids';
+} from '../../src/tools/handlers/diagnosticsDocument.js';
+import { stableIdFromCanonicalString } from '../../src/tools/ids.js';
 
 describe('diagnostics document normalization', () => {
   it('stringifies code variants and omits absent code', () => {
@@ -68,9 +68,11 @@ describe('diagnostics document normalization', () => {
     );
 
     expect(normalized.length).to.equal(1);
-    expect(normalized[0].message).to.equal('ok');
-    expect(normalized[0].code).to.equal('12');
-    expect(normalized[0].source).to.equal('lint');
+    const first = normalized[0];
+    if (!first) throw new Error('Expected a normalized diagnostic');
+    expect(first.message).to.equal('ok');
+    expect(first.code).to.equal('12');
+    expect(first.source).to.equal('lint');
   });
 
   it('omits non-integer or negative severity values', () => {
@@ -119,8 +121,11 @@ describe('diagnostics document normalization', () => {
     const normalized = normalizeDiagnostics([diag1, diag2, diag3], 'file:///abs/path/to/file.ts');
 
     expect(normalized.length).to.equal(2);
-    expect(normalized[0].message).to.equal('a');
-    expect(normalized[1].message).to.equal('b');
+    const first = normalized[0];
+    const second = normalized[1];
+    if (!first || !second) throw new Error('Expected two normalized diagnostics');
+    expect(first.message).to.equal('a');
+    expect(second.message).to.equal('b');
   });
 
   it('generates stable ids from the canonical string', () => {
@@ -131,17 +136,19 @@ describe('diagnostics document normalization', () => {
 
     const normalized = normalizeDiagnostics([diag], 'file:///abs/path/to/file.ts');
     expect(normalized.length).to.equal(1);
+    const first = normalized[0];
+    if (!first) throw new Error('Expected a normalized diagnostic');
 
     const canonical = buildDiagnosticCanonicalString(
       'file:///abs/path/to/file.ts',
-      normalized[0].range,
-      normalized[0].severity,
-      normalized[0].code,
-      normalized[0].source,
-      normalized[0].message,
+      first.range,
+      first.severity,
+      first.code,
+      first.source,
+      first.message,
     );
 
-    expect(normalized[0].id).to.equal(stableIdFromCanonicalString(canonical));
+    expect(first.id).to.equal(stableIdFromCanonicalString(canonical));
   });
 
   it('enforces MAX_ITEMS_NONPAGED deterministically', () => {

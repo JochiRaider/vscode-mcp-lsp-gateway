@@ -6,10 +6,10 @@ import * as vscode from 'vscode';
 import {
   checkWorkspaceDiagnosticsTotalCap,
   normalizeWorkspaceDiagnosticsGroups,
-} from '../../src/tools/handlers/diagnosticsWorkspace';
-import { MAX_ITEMS_NONPAGED } from '../../src/tools/handlers/diagnosticsDocument';
-import { computeRequestKey, encodeCursor, paginate } from '../../src/tools/paging/cursor';
-import { canonicalizeFileUri } from '../../src/workspace/uri';
+} from '../../src/tools/handlers/diagnosticsWorkspace.js';
+import { MAX_ITEMS_NONPAGED } from '../../src/tools/handlers/diagnosticsDocument.js';
+import { computeRequestKey, encodeCursor, paginate } from '../../src/tools/paging/cursor.js';
+import { canonicalizeFileUri } from '../../src/workspace/uri.js';
 
 describe('diagnostics workspace normalization', () => {
   it('filters out-of-root groups and sorts by canonical uri', async () => {
@@ -61,8 +61,10 @@ describe('diagnostics workspace normalization', () => {
     const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, allowedRootsRealpaths);
 
     expect(normalized.groups.length).to.equal(1);
-    expect(normalized.groups[0].diagnostics.length).to.equal(MAX_ITEMS_NONPAGED);
-    expect(normalized.groups[0].capped).to.equal(true);
+    const firstGroup = normalized.groups[0];
+    if (!firstGroup) throw new Error('Expected a diagnostics group');
+    expect(firstGroup.diagnostics.length).to.equal(MAX_ITEMS_NONPAGED);
+    expect(firstGroup.capped).to.equal(true);
   });
 
   it('accepts mixed diagnostic inputs and filters invalid entries', async () => {
@@ -76,14 +78,20 @@ describe('diagnostics workspace normalization', () => {
       severity: 1,
     };
 
-    const invalid = { range: { start: { line: -1, character: 0 }, end: { line: 0, character: 1 } } };
+    const invalid = {
+      range: { start: { line: -1, character: 0 }, end: { line: 0, character: 1 } },
+    };
 
     const raw = [[vscode.Uri.file(fileA), [diagLike, invalid, 'nope']]];
     const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, allowedRootsRealpaths);
 
     expect(normalized.groups.length).to.equal(1);
-    expect(normalized.groups[0].diagnostics.length).to.equal(1);
-    expect(normalized.groups[0].diagnostics[0].message).to.equal('ok');
+    const firstGroup = normalized.groups[0];
+    if (!firstGroup) throw new Error('Expected a diagnostics group');
+    expect(firstGroup.diagnostics.length).to.equal(1);
+    const firstDiag = firstGroup.diagnostics[0];
+    if (!firstDiag) throw new Error('Expected a diagnostic entry');
+    expect(firstDiag.message).to.equal('ok');
   });
 
   it('skips entries when canonicalization throws', async () => {
@@ -104,12 +112,16 @@ describe('diagnostics workspace normalization', () => {
       [vscode.Uri.file(fileB), [diag]],
     ];
 
-    const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, allowedRootsRealpaths, (uri) => {
-      if (uri === vscode.Uri.file(fileA).toString()) {
-        throw new Error('boom');
-      }
-      return canonicalizeFileUri(uri);
-    });
+    const normalized = await normalizeWorkspaceDiagnosticsGroups(
+      raw,
+      allowedRootsRealpaths,
+      (uri) => {
+        if (uri === vscode.Uri.file(fileA).toString()) {
+          throw new Error('boom');
+        }
+        return canonicalizeFileUri(uri);
+      },
+    );
 
     const uris = normalized.groups.map((g) => g.uri);
     expect(uris).to.deep.equal([vscode.Uri.file(fileB).toString()]);
@@ -148,7 +160,9 @@ describe('diagnostics workspace paging', () => {
     expect(paged.ok).to.equal(true);
     if (!paged.ok) return;
     expect(paged.items.length).to.equal(1);
-    expect(paged.items[0].uri).to.equal('file:///a.ts');
+    const firstGroup = paged.items[0];
+    if (!firstGroup) throw new Error('Expected a paged diagnostics group');
+    expect(firstGroup.uri).to.equal('file:///a.ts');
   });
 
   it('rejects cursor mismatches deterministically', () => {

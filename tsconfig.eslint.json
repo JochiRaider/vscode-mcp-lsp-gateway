@@ -3,11 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts",
-    "*.ts",
-    "*.mts",
-    "*.cts"
-  ]
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.ts", "*.mts", "*.cts"]
 }

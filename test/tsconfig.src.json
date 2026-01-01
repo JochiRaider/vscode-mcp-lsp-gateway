@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "../out/src",
+    "rootDir": "../src",
+
+    // Match repo ESM + NodeNext resolution (supports .js specifiers in TS imports).
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  },
+  "include": ["../src/**/*.ts"]
+}

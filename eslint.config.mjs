@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default tseslint.config(
   // Ignore build artifacts
   {
-    ignores: ['dist/**', 'out/**', 'node_modules/**', 'coverage/**'],
+    ignores: ['dist/**', 'out/**', 'node_modules/**', 'coverage/**', '.vscode-test/**'],
   },
 
   // Base JS recommended rules

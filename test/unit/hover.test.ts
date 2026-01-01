@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as vscode from 'vscode';
-import { normalizeHoverContents, pickStableRange } from '../../src/tools/handlers/hover';
+import { normalizeHoverContents, pickStableRange } from '../../src/tools/handlers/hover.js';
 
 describe('hover normalization', () => {
   it('normalizes and sorts hover contents deterministically', () => {

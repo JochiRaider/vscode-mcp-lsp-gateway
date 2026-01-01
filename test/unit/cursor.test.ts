@@ -8,13 +8,14 @@ import {
   encodeCursor,
   paginate,
   validateCursor,
-} from '../../src/tools/paging/cursor';
-import { checkReferencesTotalCap, handleReferences } from '../../src/tools/handlers/references';
+} from '../../src/tools/paging/cursor.js';
+import { checkReferencesTotalCap, handleReferences } from '../../src/tools/handlers/references.js';
 import {
   checkWorkspaceSymbolsTotalCap,
   normalizeWorkspaceSymbolsQuery,
-} from '../../src/tools/handlers/workspaceSymbols';
-import { canonicalizeAndGateFileUri } from '../../src/workspace/uri';
+} from '../../src/tools/handlers/workspaceSymbols.js';
+import { canonicalizeAndGateFileUri } from '../../src/workspace/uri.js';
+import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
 describe('cursor helpers', () => {
   it('encodes/decodes a v1 cursor payload', () => {
@@ -28,27 +29,25 @@ describe('cursor helpers', () => {
     const key = computeRequestKey('vscode.lsp.workspaceSymbols', ['query']);
     const encoded = encodeCursor({ v: 1, o: 0, k: key });
 
+    const assertInvalid = (cursor: unknown) => {
+      const res = validateCursor(cursor as string, key);
+      expect(res.ok).to.equal(false);
+      if (!res.ok) {
+        const data = res.error.data as { code?: string };
+        expect(res.error.code).to.equal(-32602);
+        expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
+      }
+    };
+
     const badVersion = Buffer.from(JSON.stringify({ v: 2, o: 0, k: key }), 'utf8').toString(
       'base64url',
     );
-    const versionRes = validateCursor(badVersion, key);
-    expect(versionRes.ok).to.equal(false);
-    if (!versionRes.ok) {
-      const data = versionRes.error.data as { code?: string };
-      expect(versionRes.error.code).to.equal(-32602);
-      expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
-    }
+    assertInvalid(badVersion);
 
     const badOffset = Buffer.from(JSON.stringify({ v: 1, o: -1, k: key }), 'utf8').toString(
       'base64url',
     );
-    const offsetRes = validateCursor(badOffset, key);
-    expect(offsetRes.ok).to.equal(false);
-    if (!offsetRes.ok) {
-      const data = offsetRes.error.data as { code?: string };
-      expect(offsetRes.error.code).to.equal(-32602);
-      expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
-    }
+    assertInvalid(badOffset);
 
     const mismatchRes = validateCursor(encoded, `${key}x`);
     expect(mismatchRes.ok).to.equal(false);
@@ -57,6 +56,21 @@ describe('cursor helpers', () => {
       expect(mismatchRes.error.code).to.equal(-32602);
       expect(data.code).to.equal('MCP_LSP_GATEWAY/CURSOR_INVALID');
     }
+
+    const missingKey = Buffer.from(JSON.stringify({ v: 1, o: 0 }), 'utf8').toString('base64url');
+    assertInvalid(missingKey);
+
+    const nonIntegerOffset = Buffer.from(JSON.stringify({ v: 1, o: 1.5, k: key }), 'utf8').toString(
+      'base64url',
+    );
+    assertInvalid(nonIntegerOffset);
+
+    const invalidJson = Buffer.from('{not-json', 'utf8').toString('base64url');
+    assertInvalid(invalidJson);
+
+    assertInvalid('%%%');
+    assertInvalid('');
+    assertInvalid(123);
   });
 
   it('paginates deterministically with stable cursors', () => {
@@ -104,7 +118,7 @@ describe('paged tool cursor validation', () => {
         includeDeclaration: true,
         cursor,
       },
-      { allowedRootsRealpaths, maxItemsPerPage: 200 },
+      { allowedRootsRealpaths, maxItemsPerPage: 200, toolRuntime: new ToolRuntime() },
     );
 
     expect(res.ok).to.equal(false);

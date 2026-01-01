@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { jsonByteLength, utf8ByteLength } from '../../src/util/responseSize';
-import { truncateHoverToolCallResult } from '../../src/tools/truncate';
+import { jsonByteLength, utf8ByteLength } from '../../src/util/responseSize.js';
+import { truncateHoverToolCallResult } from '../../src/tools/truncate.js';
 
 describe('response size helpers', () => {
   it('measures UTF-8 byte length deterministically', () => {

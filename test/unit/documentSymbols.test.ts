@@ -8,7 +8,7 @@ import {
   MAX_ITEMS_NONPAGED,
   normalizeDocumentSymbolsResult,
   normalizeSymbolInformation,
-} from '../../src/tools/handlers/documentSymbols';
+} from '../../src/tools/handlers/documentSymbols.js';
 
 describe('documentSymbols helpers', () => {
   it('flattens DocumentSymbol hierarchy with sorted children and containerName', () => {
@@ -38,7 +38,9 @@ describe('documentSymbols helpers', () => {
 
     const flat = flattenDocumentSymbols([parent], 'file:///abs/path/to/file.ts', undefined);
     expect(flat.map((s) => s.name)).to.deep.equal(['Parent', 'ChildA', 'ChildB']);
-    expect(flat[1].containerName).to.equal('Parent');
+    const child = flat[1];
+    if (!child) throw new Error('Expected a flattened child symbol');
+    expect(child.containerName).to.equal('Parent');
   });
 
   it('drops whitespace-only names and normalizes ranges', () => {
@@ -70,11 +72,13 @@ describe('documentSymbols helpers', () => {
 
     const flat = flattenDocumentSymbols([bad, good], 'file:///abs/path/to/file.ts', undefined);
     expect(flat.map((s) => s.name)).to.deep.equal(['Good']);
-    expect(flat[0].range).to.deep.equal({
+    const first = flat[0];
+    if (!first) throw new Error('Expected a flattened symbol');
+    expect(first.range).to.deep.equal({
       start: { line: 1, character: 1 },
       end: { line: 2, character: 3 },
     });
-    expect(flat[0].selectionRange).to.deep.equal({
+    expect(first.selectionRange).to.deep.equal({
       start: { line: 0, character: 0 },
       end: { line: 0, character: 4 },
     });

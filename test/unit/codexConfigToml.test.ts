@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { buildCodexConfigToml } from '../../src/util/codexConfigToml';
+import { buildCodexConfigToml } from '../../src/util/codexConfigToml.js';
 
 describe('buildCodexConfigToml', () => {
   it('builds a deterministic token-inline stanza', () => {

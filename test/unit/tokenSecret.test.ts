@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as vscode from 'vscode';
-import { ensureBearerTokenPresent, parseTokenSecret } from '../../src/server/tokenSecret';
+import { ensureBearerTokenPresent, parseTokenSecret } from '../../src/server/tokenSecret.js';
 
 class FakeSecrets implements vscode.SecretStorage {
   public stored: string | undefined;

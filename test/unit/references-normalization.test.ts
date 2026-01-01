@@ -6,7 +6,7 @@ import {
   MAX_REFERENCES_ITEMS_RAW,
   checkReferencesRawCap,
   normalizeReferenceResult,
-} from '../../src/tools/handlers/references';
+} from '../../src/tools/handlers/references.js';
 
 function repoRoot(): string {
   return path.resolve(__dirname, '..', '..', '..');

@@ -5,7 +5,8 @@ import * as vscode from 'vscode';
 import {
   handleWorkspaceSymbols,
   normalizeWorkspaceSymbols,
-} from '../../src/tools/handlers/workspaceSymbols';
+} from '../../src/tools/handlers/workspaceSymbols.js';
+import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
 function repoRoot(): string {
   return path.resolve(__dirname, '..', '..', '..');
@@ -15,7 +16,7 @@ describe('workspace symbols normalization', () => {
   it('rejects whitespace-only query strings', async () => {
     const res = await handleWorkspaceSymbols(
       { query: '   ' },
-      { allowedRootsRealpaths: [], maxItemsPerPage: 100 },
+      { allowedRootsRealpaths: [], maxItemsPerPage: 100, toolRuntime: new ToolRuntime() },
     );
     expect(res.ok).to.equal(false);
     if (!res.ok) {

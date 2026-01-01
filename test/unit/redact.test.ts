@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { createLogger, redactHeaders } from '../../src/logging/redact';
+import { createLogger, redactHeaders } from '../../src/logging/redact.js';
 import type * as vscode from 'vscode';
 
 class FakeOutputChannel {

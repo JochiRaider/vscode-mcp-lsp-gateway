@@ -1,8 +1,9 @@
 import * as path from 'node:path';
 import { expect } from 'chai';
 import * as vscode from 'vscode';
-import { dispatchToolCall } from '../../src/tools/dispatcher';
-import { SchemaRegistry } from '../../src/tools/schemaRegistry';
+import { dispatchToolCall } from '../../src/tools/dispatcher.js';
+import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
+import { SchemaRegistry } from '../../src/tools/schemaRegistry.js';
 
 function createTestContext(repoRoot: string): vscode.ExtensionContext {
   return {
@@ -18,6 +19,7 @@ describe('dispatcher', () => {
       allowedRootsRealpaths: [],
       maxItemsPerPage: 200,
       requestTimeoutMs: 1000,
+      toolRuntime: new ToolRuntime(),
     };
 
     const res = await dispatchToolCall('unknown.tool', {}, deps);
@@ -38,6 +40,7 @@ describe('dispatcher', () => {
       allowedRootsRealpaths: [],
       maxItemsPerPage: 200,
       requestTimeoutMs: 1000,
+      toolRuntime: new ToolRuntime(),
     };
 
     const res = await dispatchToolCall(

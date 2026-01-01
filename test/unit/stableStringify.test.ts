@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { stableJsonStringify } from '../../src/util/stableStringify';
+import { stableJsonStringify } from '../../src/util/stableStringify.js';
 
 describe('stableJsonStringify', () => {
   it('produces stable output regardless of key insertion order', () => {

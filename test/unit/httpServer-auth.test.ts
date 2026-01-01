@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import type * as vscode from 'vscode';
-import { HttpServer, type GatewaySettings } from '../../src/server/httpServer';
+import { HttpServer, type GatewaySettings } from '../../src/server/httpServer.js';
 
 class FakeOutputChannel {
   public appendLine(): void {

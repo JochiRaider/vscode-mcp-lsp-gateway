@@ -2,9 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { expect } from 'chai';
 import * as vscode from 'vscode';
-import { createMcpPostHandler } from '../../src/mcp/handler';
-import type { McpPostHandler, McpPostResult } from '../../src/server/router';
-import { SchemaRegistry } from '../../src/tools/schemaRegistry';
+import { createMcpPostHandler } from '../../src/mcp/handler.js';
+import type { McpPostHandler, McpPostResult } from '../../src/server/router.js';
+import { SchemaRegistry } from '../../src/tools/schemaRegistry.js';
+import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
 function createTestContext(repoRoot: string): vscode.ExtensionContext {
   return {
@@ -39,6 +40,7 @@ describe('mcp handler response size', () => {
       serverInfo: { name: 'test', version: '0.0.0' },
       enableSessions: false,
       schemaRegistry,
+      toolRuntime: new ToolRuntime(),
       maxItemsPerPage: 200,
       maxResponseBytes: 200,
       requestTimeoutMs: 1000,

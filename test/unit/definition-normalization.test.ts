@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import {
   isPositionInDocument,
   normalizeDefinitionResult,
-} from '../../src/tools/handlers/definition';
+} from '../../src/tools/handlers/definition.js';
 
 function repoRoot(): string {
   return path.resolve(__dirname, '..', '..', '..');

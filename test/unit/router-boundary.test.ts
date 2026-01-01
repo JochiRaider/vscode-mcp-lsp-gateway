@@ -1,9 +1,9 @@
 import { EventEmitter } from 'node:events';
 import type * as http from 'node:http';
 import { expect } from 'chai';
-import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from '../../src/server/router';
-import type { AuthVerifier } from '../../src/server/auth';
-import type { Logger } from '../../src/logging/redact';
+import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from '../../src/server/router.js';
+import type { AuthVerifier } from '../../src/server/auth.js';
+import type { Logger } from '../../src/logging/redact.js';
 
 const logger: Logger = {
   debug: () => undefined,

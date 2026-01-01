@@ -1,14 +1,16 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "rootDir": "..",
-    "types": ["node", "mocha"],
-    "typeRoots": ["./types", "../node_modules/@types"],
-    "strict": true,
-    "skipLibCheck": true
+    "noEmit": false,
+    "outDir": "../out/test",
+
+    // Keep ESM semantics so imports like "../../mcp/jsonrpc.js" resolve during TS compile.
+    // (This repo uses .js specifiers in TS.)
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    // Avoid emitting under out/test/test/** due to includes pointing at ../test/**.
+    "rootDir": "."
   },
-  "include": ["./**/*.ts", "./types/**/*.d.ts"]
+  "include": ["./**/*.ts"]
 }
