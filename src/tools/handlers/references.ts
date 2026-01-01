@@ -88,9 +88,6 @@ export async function handleReferences(
   const hasCursor = typeof args.cursor === 'string';
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
-  const docUri = vscode.Uri.parse(gated.value.uri, true);
-  const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
-  if (!doc) return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
 
   const cached = deps.toolRuntime.pagedFullSetCache.get(snapshotKey) as
     | readonly ContractLocation[]
@@ -103,6 +100,10 @@ export async function handleReferences(
   } else if (cached) {
     deduped = cached;
   } else {
+    const docUri = vscode.Uri.parse(gated.value.uri, true);
+    const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
+    if (!doc) return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
+
     const computed = await deps.toolRuntime.singleflight(snapshotKey, async () => {
       let raw: unknown;
       try {
