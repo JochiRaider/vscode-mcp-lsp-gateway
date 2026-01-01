@@ -11,6 +11,7 @@ import {
   handleDiagnosticsDocument,
 } from '../../src/tools/handlers/diagnosticsDocument.js';
 import { stableIdFromCanonicalString } from '../../src/tools/ids.js';
+import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
 describe('diagnostics document normalization', () => {
   it('stringifies code variants and omits absent code', () => {
@@ -172,7 +173,10 @@ describe('diagnostics document gating', () => {
     const missingPath = path.join(repoRoot, 'does-not-exist.ts');
     const missingUri = vscode.Uri.file(missingPath).toString();
 
-    const res = await handleDiagnosticsDocument({ uri: missingUri }, { allowedRootsRealpaths });
+    const res = await handleDiagnosticsDocument(
+      { uri: missingUri },
+      { allowedRootsRealpaths, toolRuntime: new ToolRuntime() },
+    );
 
     expect(res.ok).to.equal(false);
     if (!res.ok) {
@@ -191,7 +195,10 @@ describe('diagnostics document gating', () => {
     fs.writeFileSync(tempFile, 'export const x = 1;', 'utf8');
 
     const tempUri = vscode.Uri.file(tempFile).toString();
-    const res = await handleDiagnosticsDocument({ uri: tempUri }, { allowedRootsRealpaths });
+    const res = await handleDiagnosticsDocument(
+      { uri: tempUri },
+      { allowedRootsRealpaths, toolRuntime: new ToolRuntime() },
+    );
 
     fs.rmSync(tempDir, { recursive: true, force: true });
 

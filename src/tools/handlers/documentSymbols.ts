@@ -15,6 +15,8 @@ import {
   isRealPathAllowed,
   type WorkspaceGateErrorCode,
 } from '../../workspace/uri.js';
+import { stableJsonStringify } from '../../util/stableStringify.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareDocumentSymbols, dedupeSortedByKey } from '../sorting.js';
 
@@ -44,6 +46,7 @@ export type ToolResult =
 export type DocumentSymbolsDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
+  toolRuntime: ToolRuntime;
 }>;
 
 export async function handleDocumentSymbols(
@@ -62,6 +65,17 @@ export async function handleDocumentSymbols(
   const docUri = vscode.Uri.parse(gated.value.uri, true);
   const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
   if (!doc) return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
+
+  const cacheKey = stableJsonStringify({
+    tool: 'vscode.lsp.documentSymbols',
+    uri: gated.value.uri,
+    v: doc.version,
+  });
+  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.documentSymbols');
+  const cached = cache.get(cacheKey) as
+    | { symbols: readonly ContractDocumentSymbol[]; summary?: string }
+    | undefined;
+  if (cached) return { ok: true, result: cached };
 
   let raw: unknown;
   try {
@@ -86,7 +100,9 @@ export async function handleDocumentSymbols(
       ? 'Returned 1 document symbol.'
       : `Returned ${enforced.items.length} document symbols${enforced.capped ? ' (Capped.)' : '.'}`;
 
-  return { ok: true, result: { symbols: enforced.items, summary } };
+  const result = { symbols: enforced.items, summary };
+  cache.set(cacheKey, result);
+  return { ok: true, result };
 }
 
 export function enforceDocumentSymbolsCap(

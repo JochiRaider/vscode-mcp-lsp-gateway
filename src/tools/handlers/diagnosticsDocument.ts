@@ -9,6 +9,8 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { stableIdFromCanonicalString } from '../ids.js';
+import { stableJsonStringify } from '../../util/stableStringify.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import {
   canonicalDedupeKey,
   compareDiagnostics,
@@ -46,6 +48,7 @@ type DiagnosticsDocumentOutput = Readonly<{
 export type DiagnosticsDocumentDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
+  toolRuntime: ToolRuntime;
 }>;
 
 export async function handleDiagnosticsDocument(
@@ -62,6 +65,19 @@ export async function handleDiagnosticsDocument(
   if (!gated.ok) return { ok: false, error: invalidParamsError(gated.code) };
 
   const docUri = vscode.Uri.parse(gated.value.uri, true);
+  const doc = findOpenTextDocument(docUri);
+  const cacheKey = doc
+    ? stableJsonStringify({
+        tool: 'vscode.lsp.diagnostics.document',
+        uri: gated.value.uri,
+        v: doc.version,
+      })
+    : undefined;
+  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.diagnostics.document');
+  const cached = cacheKey
+    ? (cache.get(cacheKey) as DiagnosticsDocumentOutput | undefined)
+    : undefined;
+  if (cached) return { ok: true, result: cached };
 
   let raw: vscode.Diagnostic[];
   try {
@@ -78,13 +94,16 @@ export async function handleDiagnosticsDocument(
       ? 'Returned 1 diagnostic.'
       : `Returned ${enforced.items.length} diagnostics.${enforced.capped ? ' (Capped.)' : ''}`;
 
+  const result: DiagnosticsDocumentOutput = {
+    uri: gated.value.uri,
+    diagnostics: enforced.items,
+    summary,
+  };
+  if (cacheKey) cache.set(cacheKey, result);
+
   return {
     ok: true,
-    result: {
-      uri: gated.value.uri,
-      diagnostics: enforced.items,
-      summary,
-    },
+    result,
   };
 }
 
@@ -111,6 +130,11 @@ function toolError(
     message: jsonRpcCode === E_INVALID_PARAMS ? 'Invalid params' : 'Internal error',
     data,
   };
+}
+
+function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+  const asString = uri.toString();
+  return vscode.workspace.textDocuments.find((d) => d.uri.toString() === asString);
 }
 
 type SortableDiagnostic = ContractDiagnostic & Readonly<{ uri: string }>;

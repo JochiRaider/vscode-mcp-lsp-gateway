@@ -16,6 +16,8 @@ import {
   canonicalizeFileUri,
   isRealPathAllowed,
 } from '../../workspace/uri.js';
+import { stableJsonStringify } from '../../util/stableStringify.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import { canonicalDedupeKey, compareLocations, dedupeSortedByKey } from '../sorting.js';
 
 const MAX_ITEMS_NONPAGED = 200;
@@ -44,6 +46,7 @@ export type ToolResult =
 export type DefinitionDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
+  toolRuntime: ToolRuntime;
 }>;
 
 export async function handleDefinition(
@@ -69,6 +72,18 @@ export async function handleDefinition(
   if (!isPositionInDocument(doc, input.position)) {
     return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
   }
+
+  // Strict-local invalidation: key is scoped to the queried document version only.
+  const cacheKey = stableJsonStringify({
+    tool: 'vscode.lsp.definition',
+    uri: gated.value.uri,
+    v: doc.version,
+    line: input.position.line,
+    character: input.position.character,
+  });
+  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.definition');
+  const cached = cache.get(cacheKey) as DefinitionOutput | undefined;
+  if (cached) return { ok: true, result: cached };
 
   // Execute provider command.
   let raw: unknown;
@@ -98,7 +113,9 @@ export async function handleDefinition(
       ? 'Found 1 definition.'
       : `Found ${truncated.length} definitions.${deduped.length > MAX_ITEMS_NONPAGED ? ' (Capped.)' : ''}`;
 
-  return { ok: true, result: { locations: truncated, summary } };
+  const result: DefinitionOutput = { locations: truncated, summary };
+  cache.set(cacheKey, result);
+  return { ok: true, result };
 }
 
 async function openOrReuseTextDocument(uri: vscode.Uri): Promise<vscode.TextDocument> {

@@ -83,6 +83,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
   'vscode.lsp.definition': async (args, deps) => {
     return await handleDefinition(args as DefinitionInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      toolRuntime: deps.toolRuntime,
     });
   },
 
@@ -97,12 +98,14 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
   'vscode.lsp.hover': async (args, deps) => {
     return await handleHover(args as HoverInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      toolRuntime: deps.toolRuntime,
     });
   },
 
   'vscode.lsp.documentSymbols': async (args, deps) => {
     return await handleDocumentSymbols(args as DocumentSymbolsInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      toolRuntime: deps.toolRuntime,
     });
   },
 
@@ -117,6 +120,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
   'vscode.lsp.diagnostics.document': async (args, deps) => {
     return await handleDiagnosticsDocument(args as DiagnosticsDocumentInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
+      toolRuntime: deps.toolRuntime,
     });
   },
 

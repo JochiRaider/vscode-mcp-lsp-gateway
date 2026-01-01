@@ -9,6 +9,8 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
+import { stableJsonStringify } from '../../util/stableStringify.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 
 const E_INVALID_PARAMS = -32602;
 const E_INTERNAL = -32603;
@@ -36,6 +38,7 @@ type HoverOutput = Readonly<{
 export type HoverDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
+  toolRuntime: ToolRuntime;
 }>;
 
 export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<ToolResult> {
@@ -53,6 +56,17 @@ export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<To
   if (!doc) {
     return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
   }
+
+  const cacheKey = stableJsonStringify({
+    tool: 'vscode.lsp.hover',
+    uri: gated.value.uri,
+    v: doc.version,
+    line: args.position.line,
+    character: args.position.character,
+  });
+  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.hover');
+  const cached = cache.get(cacheKey) as HoverOutput | undefined;
+  if (cached) return { ok: true, result: cached };
 
   let raw: unknown;
   try {
@@ -76,6 +90,7 @@ export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<To
     summary,
   };
 
+  cache.set(cacheKey, result);
   return { ok: true, result };
 }
 
