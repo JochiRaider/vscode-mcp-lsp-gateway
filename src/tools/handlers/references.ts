@@ -15,6 +15,7 @@ import {
   isRealPathAllowed,
   type WorkspaceGateErrorCode,
 } from '../../workspace/uri.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import { canonicalDedupeKey, compareLocations, dedupeSortedByKey } from '../sorting.js';
 import { computeRequestKey, paginate, validateCursor } from '../paging/cursor.js';
 
@@ -47,6 +48,7 @@ export type ReferencesDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
+  toolRuntime: ToolRuntime;
 }>;
 
 export async function handleReferences(
@@ -77,27 +79,38 @@ export async function handleReferences(
   const doc = await openOrReuseTextDocument(docUri).catch(() => undefined);
   if (!doc) return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
 
-  let raw: unknown;
-  try {
-    raw = await vscode.commands.executeCommand(
-      'vscode.executeReferenceProvider',
-      doc.uri,
-      new vscode.Position(args.position.line, args.position.character),
-      includeDeclaration,
-    );
-  } catch {
-    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+  const cached = deps.toolRuntime.pagedFullSetCache.get(requestKey) as
+    | readonly ContractLocation[]
+    | undefined;
+
+  let deduped: readonly ContractLocation[];
+  if (cached) {
+    deduped = cached;
+  } else {
+    let raw: unknown;
+    try {
+      raw = await vscode.commands.executeCommand(
+        'vscode.executeReferenceProvider',
+        doc.uri,
+        new vscode.Position(args.position.line, args.position.character),
+        includeDeclaration,
+      );
+    } catch {
+      return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+    }
+
+    const rawCapError = checkReferencesRawCap(raw);
+    if (rawCapError) return { ok: false, error: rawCapError };
+
+    const normalized = await normalizeReferenceResult(raw, deps.allowedRootsRealpaths);
+    normalized.sort(compareLocations);
+    deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
+
+    const capError = checkReferencesTotalCap(deduped.length);
+    if (capError) return { ok: false, error: capError };
+
+    deps.toolRuntime.pagedFullSetCache.set(requestKey, deduped);
   }
-
-  const rawCapError = checkReferencesRawCap(raw);
-  if (rawCapError) return { ok: false, error: rawCapError };
-
-  const normalized = await normalizeReferenceResult(raw, deps.allowedRootsRealpaths);
-  normalized.sort(compareLocations);
-  const deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
-
-  const capError = checkReferencesTotalCap(deduped.length);
-  if (capError) return { ok: false, error: capError };
 
   const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey);
   if (!paged.ok) return { ok: false, error: paged.error };

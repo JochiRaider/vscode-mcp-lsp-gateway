@@ -16,6 +16,7 @@ import type { McpPostContext, McpPostHandler, McpPostResult } from '../server/ro
 import { parseJsonRpcMessage, type JsonRpcId, type JsonRpcErrorObject } from './jsonrpc.js';
 import { dispatchToolsList, dispatchToolCall } from '../tools/dispatcher.js';
 import type { SchemaRegistry } from '../tools/schemaRegistry.js';
+import type { ToolRuntime } from '../tools/runtime/toolRuntime.js';
 import { truncateHoverToolCallResult } from '../tools/truncate.js';
 import { jsonByteLength, utf8ByteLength } from '../util/responseSize.js';
 
@@ -29,6 +30,7 @@ export type CreateMcpPostHandlerOptions = Readonly<{
   serverInfo: McpServerInfo;
   enableSessions: boolean;
   schemaRegistry: SchemaRegistry;
+  toolRuntime: ToolRuntime;
   maxItemsPerPage: number;
   maxResponseBytes: number;
   requestTimeoutMs: number;
@@ -301,6 +303,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         allowedRootsRealpaths: opts.allowedRootsRealpaths,
         maxItemsPerPage: opts.maxItemsPerPage,
         requestTimeoutMs: opts.requestTimeoutMs,
+        toolRuntime: opts.toolRuntime,
       });
 
       if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);

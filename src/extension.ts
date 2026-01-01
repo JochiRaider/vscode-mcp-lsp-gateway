@@ -5,6 +5,7 @@ import { createMcpPostHandler } from './mcp/handler.js';
 import { SchemaRegistry } from './tools/schemaRegistry.js';
 import { HttpServer } from './server/httpServer.js';
 import { ensureBearerTokenPresent, parseTokenSecret } from './server/tokenSecret.js';
+import { ToolRuntime } from './tools/runtime/toolRuntime.js';
 import { buildCodexConfigToml } from './util/codexConfigToml.js';
 import { stableJsonStringify } from './util/stableStringify.js';
 import { computeAllowedRoots } from './workspace/roots.js';
@@ -222,6 +223,7 @@ class ExtensionRuntime {
   public constructor(private readonly context: vscode.ExtensionContext) {}
   private readonly output = vscode.window.createOutputChannel(OUT_CHAN_NAME);
   private server: HttpServer | undefined;
+  private toolRuntime: ToolRuntime | undefined;
 
   private restartTimer: NodeJS.Timeout | undefined;
   private lastStartKey: string | undefined;
@@ -328,11 +330,15 @@ class ExtensionRuntime {
       version: (typeof pkg['version'] === 'string' && pkg['version']) || '0.0.0',
     };
 
+    const toolRuntime = new ToolRuntime();
+    this.toolRuntime = toolRuntime;
+
     const onMcpPost = createMcpPostHandler({
       protocolVersion: '2025-11-25',
       serverInfo,
       enableSessions: settings.enableSessions,
       schemaRegistry,
+      toolRuntime,
       maxItemsPerPage: settings.maxItemsPerPage,
       maxResponseBytes: settings.maxResponseBytes,
       requestTimeoutMs: settings.requestTimeoutMs,
@@ -371,6 +377,10 @@ class ExtensionRuntime {
   }
 
   private async stopServer(): Promise<void> {
+    if (!this.server && !this.toolRuntime) return;
+    const toolRuntime = this.toolRuntime;
+    this.toolRuntime = undefined;
+    toolRuntime?.dispose();
     if (!this.server) return;
     try {
       await this.server.stop();

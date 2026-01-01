@@ -10,6 +10,7 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareWorkspaceSymbols, dedupeSortedByKey } from '../sorting.js';
 import { computeRequestKey, paginate } from '../paging/cursor.js';
@@ -47,6 +48,7 @@ export type WorkspaceSymbolsDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
+  toolRuntime: ToolRuntime;
 }>;
 
 type CanonicalizeResult = Awaited<ReturnType<typeof canonicalizeFileUri>>;
@@ -67,22 +69,33 @@ export async function handleWorkspaceSymbols(
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
-  let raw: unknown;
-  try {
-    raw = await vscode.commands.executeCommand(
-      'vscode.executeWorkspaceSymbolProvider',
-      normalizedQuery,
-    );
-  } catch {
-    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+  const cached = deps.toolRuntime.pagedFullSetCache.get(requestKey) as
+    | readonly ContractWorkspaceSymbol[]
+    | undefined;
+
+  let deduped: readonly ContractWorkspaceSymbol[];
+  if (cached) {
+    deduped = cached;
+  } else {
+    let raw: unknown;
+    try {
+      raw = await vscode.commands.executeCommand(
+        'vscode.executeWorkspaceSymbolProvider',
+        normalizedQuery,
+      );
+    } catch {
+      return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
+    }
+
+    const normalized = await normalizeWorkspaceSymbols(raw, deps.allowedRootsRealpaths);
+    normalized.sort(compareWorkspaceSymbols);
+    deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
+
+    const capError = checkWorkspaceSymbolsTotalCap(deduped.length);
+    if (capError) return { ok: false, error: capError };
+
+    deps.toolRuntime.pagedFullSetCache.set(requestKey, deduped);
   }
-
-  const normalized = await normalizeWorkspaceSymbols(raw, deps.allowedRootsRealpaths);
-  normalized.sort(compareWorkspaceSymbols);
-  const deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
-
-  const capError = checkWorkspaceSymbolsTotalCap(deduped.length);
-  if (capError) return { ok: false, error: capError };
 
   const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey);
   if (!paged.ok) return { ok: false, error: paged.error };

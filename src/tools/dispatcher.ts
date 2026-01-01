@@ -20,6 +20,7 @@ import {
   type V1ToolName,
 } from './catalog.js';
 import type { SchemaRegistry } from './schemaRegistry.js';
+import type { ToolRuntime } from './runtime/toolRuntime.js';
 
 // Handlers
 import { handleDefinition, type DefinitionInput } from './handlers/definition.js';
@@ -68,6 +69,7 @@ export type ToolsDispatcherDeps = Readonly<{
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
   requestTimeoutMs: number;
+  toolRuntime: ToolRuntime;
 }>;
 
 type HandlerResult =
@@ -87,6 +89,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     return await handleReferences(args as ReferencesInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
+      toolRuntime: deps.toolRuntime,
     });
   },
 
@@ -106,6 +109,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     return await handleWorkspaceSymbols(args as WorkspaceSymbolsInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
+      toolRuntime: deps.toolRuntime,
     });
   },
 
@@ -119,6 +123,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     return await handleDiagnosticsWorkspace(args as DiagnosticsWorkspaceInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
+      toolRuntime: deps.toolRuntime,
     });
   },
 } as const;

@@ -9,6 +9,7 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
+import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import { computeRequestKey, paginate } from '../paging/cursor.js';
 import { enforceDiagnosticsCap, normalizeDiagnostics } from './diagnosticsDocument.js';
 
@@ -43,6 +44,7 @@ export type DiagnosticsWorkspaceDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
+  toolRuntime: ToolRuntime;
 }>;
 
 export async function handleDiagnosticsWorkspace(
@@ -53,19 +55,31 @@ export async function handleDiagnosticsWorkspace(
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
-  let raw: unknown;
-  try {
-    raw = vscode.languages.getDiagnostics();
-  } catch {
-    return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/INTERNAL') };
+  const cached = deps.toolRuntime.pagedFullSetCache.get(requestKey) as
+    | readonly FileDiagnosticsGroup[]
+    | undefined;
+
+  let groups: readonly FileDiagnosticsGroup[];
+  if (cached) {
+    groups = cached;
+  } else {
+    let raw: unknown;
+    try {
+      raw = vscode.languages.getDiagnostics();
+    } catch {
+      return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/INTERNAL') };
+    }
+
+    const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, deps.allowedRootsRealpaths);
+
+    const capError = checkWorkspaceDiagnosticsTotalCap(normalized.groups.length);
+    if (capError) return { ok: false, error: capError };
+
+    groups = normalized.groups;
+    deps.toolRuntime.pagedFullSetCache.set(requestKey, groups);
   }
 
-  const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, deps.allowedRootsRealpaths);
-
-  const capError = checkWorkspaceDiagnosticsTotalCap(normalized.groups.length);
-  if (capError) return { ok: false, error: capError };
-
-  const paged = paginate(normalized.groups, pageSize, args.cursor ?? null, requestKey);
+  const paged = paginate(groups, pageSize, args.cursor ?? null, requestKey);
   if (!paged.ok) return { ok: false, error: paged.error };
 
   const items = paged.items.map(stripGroupCapped);
