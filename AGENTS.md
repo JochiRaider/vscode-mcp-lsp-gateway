@@ -80,7 +80,20 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 ### Tests
 
 - Full test run (uses VS Code test runner): `npm test`
-
+- Sandboxed/offline agent runners: `npm test` may fail due to environment limits in the VS Code/Electron harness,
+  not due to project code. If (and only if) the failure matches a known sandbox signature, treat it as expected and
+  proceed after the pretest quality gates pass.
+  - Examples of known signatures:
+    - `getaddrinfo EAI_AGAIN update.code.visualstudio.com` (restricted DNS/network)
+    - `FATAL:content/browser/sandbox_host_linux.cc:41 ... Operation not permitted` followed by `SIGTRAP`
+  - Required gates (must pass):
+    - `npm run check-types`
+    - `npm run lint`
+    - `npm run format:check`
+    - `npm run compile-tests`
+  - Agent/human summary must explicitly note: VS Code integration tests could not run in the sandbox and must be
+    validated locally or in CI.
+  - Do not change project defaults to accommodate sandbox limitations (for example, do not bake in `--no-sandbox`).
 Notes:
 
 - Root `tsconfig.json` is scoped to `src/**`; test compilation is separate (`npm run compile-tests`).
