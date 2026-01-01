@@ -81,21 +81,28 @@ export async function handleDiagnosticsWorkspace(
   } else if (cached) {
     groups = cached;
   } else {
-    let raw: unknown;
-    try {
-      raw = vscode.languages.getDiagnostics();
-    } catch {
-      return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/INTERNAL') };
-    }
+    const computed = await deps.toolRuntime.singleflight(snapshotKey, async () => {
+      let raw: unknown;
+      try {
+        raw = vscode.languages.getDiagnostics();
+      } catch {
+        return { ok: false as const, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/INTERNAL') };
+      }
 
-    const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, deps.allowedRootsRealpaths);
+      const normalized = await normalizeWorkspaceDiagnosticsGroups(raw, deps.allowedRootsRealpaths);
 
-    const capError = checkWorkspaceDiagnosticsTotalCap(normalized.groups.length);
-    if (capError) return { ok: false, error: capError };
+      const capError = checkWorkspaceDiagnosticsTotalCap(normalized.groups.length);
+      if (capError) return { ok: false as const, error: capError };
 
-    groups = normalized.groups;
-    const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, groups);
-    if (!stored.stored) return { ok: false, error: snapshotTooLargeError() };
+      const nextGroups = normalized.groups;
+      const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextGroups);
+      if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+
+      return { ok: true as const, value: nextGroups };
+    });
+
+    if (!computed.ok) return { ok: false, error: computed.error };
+    groups = computed.value;
   }
 
   const paged = paginate(groups, pageSize, args.cursor ?? null, requestKey, snapshotKey);

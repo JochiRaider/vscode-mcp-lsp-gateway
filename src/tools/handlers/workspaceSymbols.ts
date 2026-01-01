@@ -95,25 +95,35 @@ export async function handleWorkspaceSymbols(
   } else if (cached) {
     deduped = cached;
   } else {
-    let raw: unknown;
-    try {
-      raw = await vscode.commands.executeCommand(
-        'vscode.executeWorkspaceSymbolProvider',
-        normalizedQuery,
-      );
-    } catch {
-      return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
-    }
+    const computed = await deps.toolRuntime.singleflight(snapshotKey, async () => {
+      let raw: unknown;
+      try {
+        raw = await vscode.commands.executeCommand(
+          'vscode.executeWorkspaceSymbolProvider',
+          normalizedQuery,
+        );
+      } catch {
+        return {
+          ok: false as const,
+          error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE'),
+        };
+      }
 
-    const normalized = await normalizeWorkspaceSymbols(raw, deps.allowedRootsRealpaths);
-    normalized.sort(compareWorkspaceSymbols);
-    deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
+      const normalized = await normalizeWorkspaceSymbols(raw, deps.allowedRootsRealpaths);
+      normalized.sort(compareWorkspaceSymbols);
+      const nextDeduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
 
-    const capError = checkWorkspaceSymbolsTotalCap(deduped.length);
-    if (capError) return { ok: false, error: capError };
+      const capError = checkWorkspaceSymbolsTotalCap(nextDeduped.length);
+      if (capError) return { ok: false as const, error: capError };
 
-    const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, deduped);
-    if (!stored.stored) return { ok: false, error: snapshotTooLargeError() };
+      const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextDeduped);
+      if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+
+      return { ok: true as const, value: nextDeduped };
+    });
+
+    if (!computed.ok) return { ok: false, error: computed.error };
+    deduped = computed.value;
   }
 
   const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey, snapshotKey);

@@ -103,30 +103,40 @@ export async function handleReferences(
   } else if (cached) {
     deduped = cached;
   } else {
-    let raw: unknown;
-    try {
-      raw = await vscode.commands.executeCommand(
-        'vscode.executeReferenceProvider',
-        doc.uri,
-        new vscode.Position(args.position.line, args.position.character),
-        includeDeclaration,
-      );
-    } catch {
-      return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE') };
-    }
+    const computed = await deps.toolRuntime.singleflight(snapshotKey, async () => {
+      let raw: unknown;
+      try {
+        raw = await vscode.commands.executeCommand(
+          'vscode.executeReferenceProvider',
+          doc.uri,
+          new vscode.Position(args.position.line, args.position.character),
+          includeDeclaration,
+        );
+      } catch {
+        return {
+          ok: false as const,
+          error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/PROVIDER_UNAVAILABLE'),
+        };
+      }
 
-    const rawCapError = checkReferencesRawCap(raw);
-    if (rawCapError) return { ok: false, error: rawCapError };
+      const rawCapError = checkReferencesRawCap(raw);
+      if (rawCapError) return { ok: false as const, error: rawCapError };
 
-    const normalized = await normalizeReferenceResult(raw, deps.allowedRootsRealpaths);
-    normalized.sort(compareLocations);
-    deduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
+      const normalized = await normalizeReferenceResult(raw, deps.allowedRootsRealpaths);
+      normalized.sort(compareLocations);
+      const nextDeduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
 
-    const capError = checkReferencesTotalCap(deduped.length);
-    if (capError) return { ok: false, error: capError };
+      const capError = checkReferencesTotalCap(nextDeduped.length);
+      if (capError) return { ok: false as const, error: capError };
 
-    const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, deduped);
-    if (!stored.stored) return { ok: false, error: snapshotTooLargeError() };
+      const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextDeduped);
+      if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+
+      return { ok: true as const, value: nextDeduped };
+    });
+
+    if (!computed.ok) return { ok: false, error: computed.error };
+    deduped = computed.value;
   }
 
   const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey, snapshotKey);

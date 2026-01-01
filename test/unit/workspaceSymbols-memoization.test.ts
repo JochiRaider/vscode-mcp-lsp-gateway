@@ -99,6 +99,74 @@ describe('workspaceSymbols memoization', () => {
     }
   });
 
+  it('coalesces concurrent snapshot creation by snapshot key', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const tempDir = fs.mkdtempSync(path.join(repoRoot, 'tmp-workspace-symbols-coalesce-'));
+    const tempFile = path.join(tempDir, 'file.txt');
+    fs.writeFileSync(tempFile, 'const x = 1;', 'utf8');
+
+    const uri = vscode.Uri.file(tempFile);
+    const allowedRootsRealpaths = [fs.realpathSync(tempDir)];
+    const toolRuntime = new ToolRuntime();
+
+    let calls = 0;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const symbols = [
+      new vscode.SymbolInformation(
+        'One',
+        vscode.SymbolKind.Function,
+        '',
+        new vscode.Location(
+          uri,
+          new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1)),
+        ),
+      ),
+      new vscode.SymbolInformation(
+        'Two',
+        vscode.SymbolKind.Function,
+        '',
+        new vscode.Location(
+          uri,
+          new vscode.Range(new vscode.Position(0, 2), new vscode.Position(0, 3)),
+        ),
+      ),
+    ];
+
+    const disposable = vscode.languages.registerWorkspaceSymbolProvider({
+      provideWorkspaceSymbols: async () => {
+        calls += 1;
+        await gate;
+        return symbols;
+      },
+    });
+
+    try {
+      const first = handleWorkspaceSymbols(
+        { query: 'foo', pageSize: 1 },
+        { allowedRootsRealpaths, maxItemsPerPage: 200, toolRuntime },
+      );
+      const second = handleWorkspaceSymbols(
+        { query: 'foo', pageSize: 2 },
+        { allowedRootsRealpaths, maxItemsPerPage: 200, toolRuntime },
+      );
+
+      await Promise.resolve();
+      release?.();
+
+      const [firstRes, secondRes] = await Promise.all([first, second]);
+      expect(firstRes.ok).to.equal(true);
+      expect(secondRes.ok).to.equal(true);
+      expect(calls).to.equal(1);
+    } finally {
+      disposable.dispose();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('returns CURSOR_EXPIRED when snapshot is evicted', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
     const tempDir = fs.mkdtempSync(path.join(repoRoot, 'tmp-workspace-symbols-expired-'));
