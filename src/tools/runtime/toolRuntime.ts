@@ -15,6 +15,9 @@ export class ToolRuntime {
   private fsEpoch = 0;
   private diagnosticsEpoch = 0;
   private rootsEpoch = 0;
+  private textEpochPending = false;
+  private diagnosticsEpochPending = false;
+  private disposed = false;
   public readonly pagedFullSetCache = new LruCache<string, unknown>({
     perEntryCapBytes: PAGED_FULL_SET_PER_ENTRY_CAP_BYTES,
     totalCapBytes: PAGED_FULL_SET_TOTAL_CAP_BYTES,
@@ -49,6 +52,9 @@ export class ToolRuntime {
   }
 
   public dispose(): void {
+    this.disposed = true;
+    this.textEpochPending = false;
+    this.diagnosticsEpochPending = false;
     this.inFlight.clear();
     this.pagedFullSetCache.clear();
     for (const cache of this.unpagedCaches.values()) {
@@ -58,7 +64,13 @@ export class ToolRuntime {
   }
 
   public bumpTextEpoch(): void {
-    this.textEpoch = nextEpoch(this.textEpoch);
+    if (this.disposed || this.textEpochPending) return;
+    this.textEpochPending = true;
+    queueMicrotask(() => {
+      this.textEpochPending = false;
+      if (this.disposed) return;
+      this.textEpoch = nextEpoch(this.textEpoch);
+    });
   }
 
   public bumpFsEpoch(): void {
@@ -66,11 +78,26 @@ export class ToolRuntime {
   }
 
   public bumpDiagnosticsEpoch(): void {
-    this.diagnosticsEpoch = nextEpoch(this.diagnosticsEpoch);
+    if (this.disposed || this.diagnosticsEpochPending) return;
+    this.diagnosticsEpochPending = true;
+    queueMicrotask(() => {
+      this.diagnosticsEpochPending = false;
+      if (this.disposed) return;
+      this.diagnosticsEpoch = nextEpoch(this.diagnosticsEpoch);
+    });
   }
 
   public bumpRootsEpoch(): void {
     this.rootsEpoch = nextEpoch(this.rootsEpoch);
+  }
+
+  public getEpochSnapshotForTool(toolName: string): readonly number[] {
+    const epochs = epochsForTool(toolName);
+    const snapshot = [this.rootsEpoch];
+    if (epochs.text) snapshot.push(this.textEpoch);
+    if (epochs.fs) snapshot.push(this.fsEpoch);
+    if (epochs.diagnostics) snapshot.push(this.diagnosticsEpoch);
+    return snapshot;
   }
 
   public getSnapshotFingerprint(

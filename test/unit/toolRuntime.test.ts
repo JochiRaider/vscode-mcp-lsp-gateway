@@ -1,6 +1,17 @@
 import { expect } from 'chai';
 import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
+const flushMicrotasks = async (): Promise<void> =>
+  new Promise((resolve) => queueMicrotask(resolve));
+
+const getEpochAt = (snapshot: readonly number[], index: number): number => {
+  const value = snapshot[index];
+  if (value === undefined) {
+    throw new Error(`expected epoch at index ${index}`);
+  }
+  return value;
+};
+
 describe('ToolRuntime singleflight', () => {
   it('shares a single in-flight promise and clears on resolve', async () => {
     const runtime = new ToolRuntime();
@@ -57,5 +68,73 @@ describe('ToolRuntime singleflight', () => {
       return 'ok';
     });
     expect(calls).to.equal(2);
+  });
+});
+
+describe('ToolRuntime epochs', () => {
+  it('returns a stable snapshot ordering per tool', () => {
+    const runtime = new ToolRuntime();
+
+    const references = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    expect(references.length).to.equal(3);
+
+    const workspaceDiagnostics = runtime.getEpochSnapshotForTool(
+      'vscode.lsp.diagnostics.workspace',
+    );
+    expect(workspaceDiagnostics.length).to.equal(3);
+
+    const hover = runtime.getEpochSnapshotForTool('vscode.lsp.hover');
+    expect(hover.length).to.equal(4);
+  });
+
+  it('coalesces text epoch bumps within a tick', async () => {
+    const runtime = new ToolRuntime();
+    const before = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+
+    runtime.bumpTextEpoch();
+    runtime.bumpTextEpoch();
+    runtime.bumpTextEpoch();
+
+    const mid = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    expect(getEpochAt(mid, 1)).to.equal(getEpochAt(before, 1));
+
+    await flushMicrotasks();
+
+    const after = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    expect(getEpochAt(after, 1)).to.equal(getEpochAt(before, 1) + 1);
+
+    runtime.bumpTextEpoch();
+    await flushMicrotasks();
+
+    const afterSecond = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    expect(getEpochAt(afterSecond, 1)).to.equal(getEpochAt(before, 1) + 2);
+  });
+
+  it('coalesces diagnostics epoch bumps within a tick', async () => {
+    const runtime = new ToolRuntime();
+    const before = runtime.getEpochSnapshotForTool('vscode.lsp.diagnostics.workspace');
+
+    runtime.bumpDiagnosticsEpoch();
+    runtime.bumpDiagnosticsEpoch();
+
+    const mid = runtime.getEpochSnapshotForTool('vscode.lsp.diagnostics.workspace');
+    expect(getEpochAt(mid, 2)).to.equal(getEpochAt(before, 2));
+
+    await flushMicrotasks();
+
+    const after = runtime.getEpochSnapshotForTool('vscode.lsp.diagnostics.workspace');
+    expect(getEpochAt(after, 2)).to.equal(getEpochAt(before, 2) + 1);
+  });
+
+  it('does not apply pending bumps after dispose', async () => {
+    const runtime = new ToolRuntime();
+    const before = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+
+    runtime.bumpTextEpoch();
+    runtime.dispose();
+    await flushMicrotasks();
+
+    const after = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    expect(getEpochAt(after, 1)).to.equal(getEpochAt(before, 1));
   });
 });

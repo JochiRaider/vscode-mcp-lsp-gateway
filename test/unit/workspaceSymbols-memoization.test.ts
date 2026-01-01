@@ -10,6 +10,9 @@ import {
 } from '../../src/tools/paging/cursor.js';
 import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
+const flushMicrotasks = async (): Promise<void> =>
+  new Promise((resolve) => queueMicrotask(resolve));
+
 describe('workspaceSymbols memoization', () => {
   it('reuses cached full set across pages', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -201,6 +204,7 @@ describe('workspaceSymbols memoization', () => {
       expect(firstResult.nextCursor).to.be.a('string');
 
       toolRuntime.bumpTextEpoch();
+      await flushMicrotasks();
 
       const second = await handleWorkspaceSymbols(
         { query: 'foo', pageSize: 1, cursor: firstResult.nextCursor },
