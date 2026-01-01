@@ -8,7 +8,12 @@ import {
   normalizeWorkspaceDiagnosticsGroups,
 } from '../../src/tools/handlers/diagnosticsWorkspace.js';
 import { MAX_ITEMS_NONPAGED } from '../../src/tools/handlers/diagnosticsDocument.js';
-import { computeRequestKey, encodeCursor, paginate } from '../../src/tools/paging/cursor.js';
+import {
+  computeRequestKey,
+  computeSnapshotKey,
+  encodeCursor,
+  paginate,
+} from '../../src/tools/paging/cursor.js';
 import { canonicalizeFileUri } from '../../src/workspace/uri.js';
 
 describe('diagnostics workspace normalization', () => {
@@ -156,7 +161,8 @@ describe('diagnostics workspace paging', () => {
     ];
 
     const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
-    const paged = paginate(groups, 1, null, requestKey);
+    const snapshotKey = computeSnapshotKey(requestKey, 'fp');
+    const paged = paginate(groups, 1, null, requestKey, snapshotKey);
     expect(paged.ok).to.equal(true);
     if (!paged.ok) return;
     expect(paged.items.length).to.equal(1);
@@ -168,9 +174,10 @@ describe('diagnostics workspace paging', () => {
   it('rejects cursor mismatches deterministically', () => {
     const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
     const otherKey = computeRequestKey('vscode.lsp.diagnostics.workspace', ['x']);
-    const cursor = encodeCursor({ v: 1, o: 0, k: otherKey });
+    const snapshotKey = computeSnapshotKey(requestKey, 'fp');
+    const cursor = encodeCursor({ v: 2, o: 0, k: otherKey, s: snapshotKey });
 
-    const paged = paginate([], 1, cursor, requestKey);
+    const paged = paginate([], 1, cursor, requestKey, snapshotKey);
     expect(paged.ok).to.equal(false);
     if (!paged.ok) {
       expect(paged.error.code).to.equal(-32602);

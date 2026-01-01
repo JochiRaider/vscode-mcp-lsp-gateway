@@ -63,6 +63,7 @@ When a tool operates on a file location:
 When a tool supports paging:
 
 - Use `cursor` (string, nullable only if you explicitly support null in the contract)
+- `cursor` is **opaque** to clients; versioning and snapshot semantics are defined in docs/CONTRACT.md
 - Use `pageSize` (integer) bounded to the v1 max page size
 
 ### 5.2 Encode caps in schemas

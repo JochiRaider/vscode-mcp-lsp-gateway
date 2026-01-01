@@ -3,7 +3,11 @@ import * as path from 'node:path';
 import { expect } from 'chai';
 import * as vscode from 'vscode';
 import { handleDiagnosticsWorkspace } from '../../src/tools/handlers/diagnosticsWorkspace.js';
-import { computeRequestKey, encodeCursor } from '../../src/tools/paging/cursor.js';
+import {
+  computeRequestKey,
+  computeSnapshotKey,
+  encodeCursor,
+} from '../../src/tools/paging/cursor.js';
 import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
 describe('diagnostics workspace memoization', () => {
@@ -55,7 +59,12 @@ describe('diagnostics workspace memoization', () => {
       expect(returnedUris).to.deep.equal([uriA.toString(), uriB.toString()].sort());
 
       const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
-      const invalidCursor = encodeCursor({ v: 1, o: 0, k: `${requestKey}x` });
+      const snapshotFingerprint = toolRuntime.getSnapshotFingerprint(
+        'vscode.lsp.diagnostics.workspace',
+        allowedRootsRealpaths,
+      );
+      const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+      const invalidCursor = encodeCursor({ v: 2, o: 0, k: `${requestKey}x`, s: snapshotKey });
       const invalid = await handleDiagnosticsWorkspace(
         { pageSize: 1, cursor: invalidCursor },
         { allowedRootsRealpaths, maxItemsPerPage: 200, toolRuntime },

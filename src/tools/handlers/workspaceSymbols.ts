@@ -13,7 +13,14 @@ import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
 import type { ToolRuntime } from '../runtime/toolRuntime.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareWorkspaceSymbols, dedupeSortedByKey } from '../sorting.js';
-import { computeRequestKey, paginate } from '../paging/cursor.js';
+import {
+  computeRequestKey,
+  computeSnapshotKey,
+  cursorExpiredError,
+  paginate,
+  snapshotTooLargeError,
+  validateCursor,
+} from '../paging/cursor.js';
 
 const TOOL_NAME = 'vscode.lsp.workspaceSymbols' as const;
 const MAX_WORKSPACE_SYMBOLS_ITEMS_TOTAL = 20000;
@@ -66,15 +73,26 @@ export async function handleWorkspaceSymbols(
     };
   }
   const requestKey = computeRequestKey(TOOL_NAME, [normalizedQuery]);
+  const snapshotFingerprint = deps.toolRuntime.getSnapshotFingerprint(
+    TOOL_NAME,
+    deps.allowedRootsRealpaths,
+  );
+  const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+  const cursorChecked = validateCursor(args.cursor, requestKey, snapshotKey);
+  if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
+  const hasCursor = typeof args.cursor === 'string';
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
-  const cached = deps.toolRuntime.pagedFullSetCache.get(requestKey) as
+  const cached = deps.toolRuntime.pagedFullSetCache.get(snapshotKey) as
     | readonly ContractWorkspaceSymbol[]
     | undefined;
 
   let deduped: readonly ContractWorkspaceSymbol[];
-  if (cached) {
+  if (hasCursor) {
+    if (!cached) return { ok: false, error: cursorExpiredError() };
+    deduped = cached;
+  } else if (cached) {
     deduped = cached;
   } else {
     let raw: unknown;
@@ -94,10 +112,11 @@ export async function handleWorkspaceSymbols(
     const capError = checkWorkspaceSymbolsTotalCap(deduped.length);
     if (capError) return { ok: false, error: capError };
 
-    deps.toolRuntime.pagedFullSetCache.set(requestKey, deduped);
+    const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, deduped);
+    if (!stored.stored) return { ok: false, error: snapshotTooLargeError() };
   }
 
-  const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey);
+  const paged = paginate(deduped, pageSize, args.cursor ?? null, requestKey, snapshotKey);
   if (!paged.ok) return { ok: false, error: paged.error };
 
   const summary =

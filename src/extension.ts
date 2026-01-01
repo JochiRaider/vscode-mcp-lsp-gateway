@@ -224,6 +224,7 @@ class ExtensionRuntime {
   private readonly output = vscode.window.createOutputChannel(OUT_CHAN_NAME);
   private server: HttpServer | undefined;
   private toolRuntime: ToolRuntime | undefined;
+  private readonly runtimeDisposables: vscode.Disposable[] = [];
 
   private restartTimer: NodeJS.Timeout | undefined;
   private lastStartKey: string | undefined;
@@ -332,6 +333,7 @@ class ExtensionRuntime {
 
     const toolRuntime = new ToolRuntime();
     this.toolRuntime = toolRuntime;
+    this.registerRuntimeWatchers(toolRuntime);
 
     const onMcpPost = createMcpPostHandler({
       protocolVersion: '2025-11-25',
@@ -380,6 +382,10 @@ class ExtensionRuntime {
     if (!this.server && !this.toolRuntime) return;
     const toolRuntime = this.toolRuntime;
     this.toolRuntime = undefined;
+    for (const disposable of this.runtimeDisposables) {
+      disposable.dispose();
+    }
+    this.runtimeDisposables.length = 0;
     toolRuntime?.dispose();
     if (!this.server) return;
     try {
@@ -392,6 +398,25 @@ class ExtensionRuntime {
       this.server = undefined;
       this.lastStartKey = undefined;
     }
+  }
+
+  private registerRuntimeWatchers(toolRuntime: ToolRuntime): void {
+    for (const disposable of this.runtimeDisposables) {
+      disposable.dispose();
+    }
+    this.runtimeDisposables.length = 0;
+
+    this.runtimeDisposables.push(
+      vscode.workspace.onDidOpenTextDocument(() => toolRuntime.bumpTextEpoch()),
+      vscode.workspace.onDidCloseTextDocument(() => toolRuntime.bumpTextEpoch()),
+      vscode.workspace.onDidChangeTextDocument(() => toolRuntime.bumpTextEpoch()),
+      vscode.workspace.onDidSaveTextDocument(() => toolRuntime.bumpTextEpoch()),
+      vscode.workspace.onDidCreateFiles(() => toolRuntime.bumpFsEpoch()),
+      vscode.workspace.onDidDeleteFiles(() => toolRuntime.bumpFsEpoch()),
+      vscode.workspace.onDidRenameFiles(() => toolRuntime.bumpFsEpoch()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => toolRuntime.bumpRootsEpoch()),
+      vscode.languages.onDidChangeDiagnostics(() => toolRuntime.bumpDiagnosticsEpoch()),
+    );
   }
 }
 

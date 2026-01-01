@@ -161,7 +161,7 @@ All positions and ranges follow LSP conventions:
 
 ### 3.5 Paging envelope
 
-Paged tools return a stable cursor.
+Paged tools return a stable cursor that carries a **snapshot token**.
 
 ```json
 {
@@ -175,28 +175,36 @@ Paged tools return a stable cursor.
 - `nextCursor` is `null` when no further pages exist.
 - Cursor format is opaque to the client.
 - Cursor MUST be derived deterministically from the canonical sorted full result set for the specific tool + canonicalized input.
+- **Snapshot semantics (normative):**
+  - A non-null cursor MUST only be valid for the same snapshot token it was minted with.
+  - If the snapshot token in the cursor does not match the server’s current snapshot token for the request, the server MUST reject the request deterministically (see §3.6).
+  - The server MUST retain the canonical full result set for the snapshot while paging; if it cannot retain the snapshot within caps, the request MUST fail deterministically (see §3.6).
 
 ### 3.6 Cursor algorithm (normative)
 
 All paged tools MUST use the same cursor structure:
 
 - The cursor payload is JSON:
-  - `v`: integer cursor format version (v1)
+  - `v`: integer cursor format version (v2)
   - `o`: integer offset into the **canonical sorted, deduped** result list
   - `k`: request key string (hex sha256 of canonical tool name + canonicalized input fields that affect the result)
+  - `s`: snapshot key string (hex sha256; binds paging to a specific workspace state)
 
 - The cursor string is `base64url(utf8(JSON))` with no padding.
 
 Rules:
 
-- `cursor: null` means `o = 0`.
+- `cursor: null` means `o = 0` and the server mints a cursor with the current `k` and current `s`.
 - The server MUST reject a cursor if:
   - it cannot be decoded/parsed, or
   - `v` is not supported, or
   - `o` is not a non-negative integer, or
   - `k` does not match the current request key.
 
-- Cursor rejection MUST fail closed with `-32602 Invalid params` and tool error code `MCP_LSP_GATEWAY/CURSOR_INVALID`.
+- Cursor rejection for the cases above MUST fail closed with `-32602 Invalid params` and tool error code `MCP_LSP_GATEWAY/CURSOR_INVALID`.
+- **Snapshot mismatch:** if the cursor’s `s` does not match the server-computed current snapshot key for the request, the server MUST reject with `-32602 Invalid params` and tool error code `MCP_LSP_GATEWAY/CURSOR_STALE`.
+- **Snapshot missing:** if the cursor is valid but the retained snapshot is not available (expired/evicted), the server MUST reject with `-32602 Invalid params` and tool error code `MCP_LSP_GATEWAY/CURSOR_EXPIRED`.
+- **Snapshot retention failure:** if the server cannot retain the snapshot within caps, it MUST return `-32602 Invalid params` and tool error code `MCP_LSP_GATEWAY/SNAPSHOT_TOO_LARGE` and MUST NOT return partial results.
 
 Paging:
 
@@ -204,7 +212,37 @@ Paging:
   - `items = full[o : o + pageSize]` where `pageSize` is clamped to `MAX_PAGE_SIZE`.
 
 - `nextCursor` is:
-  - `null` if `o + pageSize >= full.length`, else a new cursor with `o = o + pageSize` and the same `k`.
+  - `null` if `o + pageSize >= full.length`, else a new cursor with `o = o + pageSize` and the same `k`and `s`.
+
+### 3.6.1 Snapshot key derivation (normative)
+
+The snapshot key binds paging to a specific workspace state so that a client cannot page across edits or other state changes.
+
+- `s = sha256hex("v1|snapshot|" + k + "|" + snapshotFingerprint)`
+
+`snapshotFingerprint` MUST be a deterministic string that changes whenever the tool’s canonical result set could change, including changes to:
+
+- workspace folder set and allowed roots
+- text documents (open/close/change/save)
+- files (create/delete/rename)
+- diagnostics (when relevant to the tool)
+
+The implementation may use one or more monotonically increasing epoch counters to construct `snapshotFingerprint`, but the resulting string MUST be stable for an unchanged workspace.
+
+### 3.6.2 Epoch sources and tool mapping (normative)
+
+Epoch counters are monotonic integers maintained by the server to capture workspace state changes:
+
+- `textEpoch`: increment on text document open/close/change/save.
+- `fsEpoch`: increment on file create/delete/rename.
+- `diagnosticsEpoch`: increment when VS Code diagnostics change.
+- `rootsEpoch`: increment when the workspace folder set or allowed roots change.
+
+Snapshot fingerprints for paged tools MUST incorporate the relevant epochs:
+
+- `vscode.lsp.references`: `textEpoch`, `fsEpoch`, `rootsEpoch`
+- `vscode.lsp.workspaceSymbols`: `textEpoch`, `fsEpoch`, `rootsEpoch`
+- `vscode.lsp.diagnostics.workspace`: `diagnosticsEpoch`, `fsEpoch`, `rootsEpoch`
 
 ### 3.7 Stable identifiers (when needed)
 
@@ -270,7 +308,9 @@ Paged tools MUST:
 2. stable sort
 3. dedup
 4. enforce total-set caps (see §5.1)
-5. slice deterministically using the cursor algorithm (§3.5)
+5. slice deterministically using the cursor algorithm (§3.6)
+6. retain the canonical full set for the snapshot; if retention fails, return `MCP_LSP_GATEWAY/SNAPSHOT_TOO_LARGE`
+7. on subsequent pages, reuse the retained snapshot or return `MCP_LSP_GATEWAY/CURSOR_EXPIRED` if it is unavailable
 
 ### 4.5 Timeouts and partial results
 
@@ -357,6 +397,15 @@ Defined codes:
 
 - `MCP_LSP_GATEWAY/CURSOR_INVALID`
   - cursor decode/parse failure, unsupported cursor version, negative/invalid offset, or request-key mismatch
+
+- `MCP_LSP_GATEWAY/CURSOR_STALE`
+  - cursor snapshot key mismatch (workspace state changed since cursor was minted)
+
+- `MCP_LSP_GATEWAY/CURSOR_EXPIRED`
+  - cursor is valid but the retained snapshot is missing (expired/evicted)
+
+- `MCP_LSP_GATEWAY/SNAPSHOT_TOO_LARGE`
+  - snapshot could not be retained within caps for paging
 
 - `MCP_LSP_GATEWAY/NOT_FOUND`
   - document not openable or position not resolvable
@@ -455,7 +504,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 **Determinism**
 
 - Canonicalize, filter, sort, dedup, enforce total-set cap, then page.
-- Cursor algorithm is §3.5.
+- Cursor algorithm is §3.6.
 - Canonical list for paging is the location list after filtering.
 
 **Limits**
@@ -557,7 +606,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 **Stable identifier**
 
 - `canonical_string = uri + "|" + name + "|" + kind + "|" + range.start + "|" + range.end + "|" + selectionRange.start + "|" + selectionRange.end + "|" + (containerName||"")`
-- `id = sha256(canonical_string)` per §3.6.
+- `id = sha256(canonical_string)` per §3.7.
 
 **Limits**
 
@@ -607,12 +656,12 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 - Reject whitespace-only queries after normalization with `Invalid params`.
 - Filter results to allowed roots.
 - Stable sort per §4.2 “Workspace symbols”.
-- Dedup, enforce total-set cap, then page via §3.5.
+- Dedup, enforce total-set cap, then page via §3.6.
 
 **Stable identifier**
 
 - `canonical_string = location.uri + "|" + name + "|" + kind + "|" + location.range.start + "|" + location.range.end + "|" + (containerName||"")`
-- `id = sha256(canonical_string)` per §3.6.
+- `id = sha256(canonical_string)` per §3.7.
 
 **Limits**
 
@@ -622,6 +671,11 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 **Stable id (cursor request key)**
 
 - `k = sha256hex("v1|vscode.lsp.workspaceSymbols|" + normalized_query)`
+
+**Stable id (cursor snapshot key)**
+
+- `s = sha256hex("v1|snapshot|" + k + "|" + snapshotFingerprint)`
+  - `snapshotFingerprint` is implementation-defined, but MUST change when any workspace state that could affect workspace symbol results changes (see §3.6.1).
 
 ---
 
@@ -670,7 +724,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 **Stable identifier**
 
 - `canonical_string = uri + "|" + range.start + "|" + range.end + "|" + (severity||"") + "|" + (code||"") + "|" + (source||"") + "|" + message`
-- `id = sha256(canonical_string)` per §3.6.
+- `id = sha256(canonical_string)` per §3.7.
 
 **Limits**
 

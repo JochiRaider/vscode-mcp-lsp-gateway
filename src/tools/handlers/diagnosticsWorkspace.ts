@@ -10,7 +10,14 @@ import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
 import type { ToolRuntime } from '../runtime/toolRuntime.js';
-import { computeRequestKey, paginate } from '../paging/cursor.js';
+import {
+  computeRequestKey,
+  computeSnapshotKey,
+  cursorExpiredError,
+  paginate,
+  snapshotTooLargeError,
+  validateCursor,
+} from '../paging/cursor.js';
 import { enforceDiagnosticsCap, normalizeDiagnostics } from './diagnosticsDocument.js';
 
 const TOOL_NAME = 'vscode.lsp.diagnostics.workspace' as const;
@@ -52,15 +59,26 @@ export async function handleDiagnosticsWorkspace(
   deps: DiagnosticsWorkspaceDeps,
 ): Promise<ToolResult> {
   const requestKey = computeRequestKey(TOOL_NAME, []);
+  const snapshotFingerprint = deps.toolRuntime.getSnapshotFingerprint(
+    TOOL_NAME,
+    deps.allowedRootsRealpaths,
+  );
+  const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+  const cursorChecked = validateCursor(args.cursor, requestKey, snapshotKey);
+  if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
+  const hasCursor = typeof args.cursor === 'string';
 
   const pageSize = clampPageSize(args.pageSize, deps.maxItemsPerPage);
 
-  const cached = deps.toolRuntime.pagedFullSetCache.get(requestKey) as
+  const cached = deps.toolRuntime.pagedFullSetCache.get(snapshotKey) as
     | readonly FileDiagnosticsGroup[]
     | undefined;
 
   let groups: readonly FileDiagnosticsGroup[];
-  if (cached) {
+  if (hasCursor) {
+    if (!cached) return { ok: false, error: cursorExpiredError() };
+    groups = cached;
+  } else if (cached) {
     groups = cached;
   } else {
     let raw: unknown;
@@ -76,10 +94,11 @@ export async function handleDiagnosticsWorkspace(
     if (capError) return { ok: false, error: capError };
 
     groups = normalized.groups;
-    deps.toolRuntime.pagedFullSetCache.set(requestKey, groups);
+    const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, groups);
+    if (!stored.stored) return { ok: false, error: snapshotTooLargeError() };
   }
 
-  const paged = paginate(groups, pageSize, args.cursor ?? null, requestKey);
+  const paged = paginate(groups, pageSize, args.cursor ?? null, requestKey, snapshotKey);
   if (!paged.ok) return { ok: false, error: paged.error };
 
   const items = paged.items.map(stripGroupCapped);
