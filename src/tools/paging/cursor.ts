@@ -30,8 +30,13 @@ export function computeRequestKey(
   return sha256hex(keyInput);
 }
 
-export function computeSnapshotKey(requestKey: string, snapshotFingerprint: string): string {
-  const keyInput = ['v1', 'snapshot', requestKey, snapshotFingerprint].join('|');
+export function formatEpochTupleString(rootsKey: string, epochs: readonly number[]): string {
+  const epochParts = epochs.map((epoch) => String(epoch));
+  return `roots:${rootsKey}|epochs:${epochParts.join(',')}`;
+}
+
+export function computeSnapshotKey(requestKey: string, epochTupleString: string): string {
+  const keyInput = ['v1', 'snapshot', requestKey, epochTupleString].join('|');
   return sha256hex(keyInput);
 }
 

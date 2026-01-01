@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { expect } from 'chai';
 import * as vscode from 'vscode';
 import {
@@ -7,6 +8,7 @@ import {
   computeSnapshotKey,
   decodeCursor,
   encodeCursor,
+  formatEpochTupleString,
   paginate,
   validateCursor,
 } from '../../src/tools/paging/cursor.js';
@@ -25,6 +27,16 @@ describe('cursor helpers', () => {
     const encoded = encodeCursor({ v: 2, o: 5, k: key, s: snapshotKey });
     const decoded = decodeCursor(encoded);
     expect(decoded).to.deep.equal({ v: 2, o: 5, k: key, s: snapshotKey });
+  });
+
+  it('derives snapshot keys from a stable epoch tuple string', () => {
+    const requestKey = 'request-key';
+    const epochTupleString = formatEpochTupleString('roots-key', [3, 7, 11]);
+    expect(epochTupleString).to.equal('roots:roots-key|epochs:3,7,11');
+    const expected = createHash('sha256')
+      .update(`v1|snapshot|${requestKey}|${epochTupleString}`, 'utf8')
+      .digest('hex');
+    expect(computeSnapshotKey(requestKey, epochTupleString)).to.equal(expected);
   });
 
   it('rejects invalid cursor payloads deterministically', () => {
@@ -134,11 +146,11 @@ describe('paged tool cursor validation', () => {
 
     const toolRuntime = new ToolRuntime();
     const requestKey = computeRequestKey('vscode.lsp.references', [gated.value.uri, 1, 2, false]);
-    const snapshotFingerprint = toolRuntime.getSnapshotFingerprint(
+    const epochTupleString = toolRuntime.getSnapshotFingerprint(
       'vscode.lsp.references',
       allowedRootsRealpaths,
     );
-    const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+    const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);
     const cursor = encodeCursor({ v: 2, o: 0, k: requestKey, s: snapshotKey });
 
     const res = await handleReferences(

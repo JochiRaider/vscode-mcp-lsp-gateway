@@ -77,11 +77,11 @@ describe('workspaceSymbols memoization', () => {
       expect(calls).to.equal(1);
 
       const requestKey = computeRequestKey('vscode.lsp.workspaceSymbols', ['foo']);
-      const snapshotFingerprint = toolRuntime.getSnapshotFingerprint(
+      const epochTupleString = toolRuntime.getSnapshotFingerprint(
         'vscode.lsp.workspaceSymbols',
         allowedRootsRealpaths,
       );
-      const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+      const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);
       const cursor = encodeCursor({ v: 2, o: 0, k: `${requestKey}x`, s: snapshotKey });
       const invalid = await handleWorkspaceSymbols(
         { query: 'foo', pageSize: 1, cursor },

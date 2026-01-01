@@ -59,11 +59,11 @@ describe('diagnostics workspace memoization', () => {
       expect(returnedUris).to.deep.equal([uriA.toString(), uriB.toString()].sort());
 
       const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
-      const snapshotFingerprint = toolRuntime.getSnapshotFingerprint(
+      const epochTupleString = toolRuntime.getSnapshotFingerprint(
         'vscode.lsp.diagnostics.workspace',
         allowedRootsRealpaths,
       );
-      const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+      const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);
       const invalidCursor = encodeCursor({ v: 2, o: 0, k: `${requestKey}x`, s: snapshotKey });
       const invalid = await handleDiagnosticsWorkspace(
         { pageSize: 1, cursor: invalidCursor },

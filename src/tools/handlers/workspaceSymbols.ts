@@ -73,11 +73,11 @@ export async function handleWorkspaceSymbols(
     };
   }
   const requestKey = computeRequestKey(TOOL_NAME, [normalizedQuery]);
-  const snapshotFingerprint = deps.toolRuntime.getSnapshotFingerprint(
+  const epochTupleString = deps.toolRuntime.getSnapshotFingerprint(
     TOOL_NAME,
     deps.allowedRootsRealpaths,
   );
-  const snapshotKey = computeSnapshotKey(requestKey, snapshotFingerprint);
+  const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);
   const cursorChecked = validateCursor(args.cursor, requestKey, snapshotKey);
   if (!cursorChecked.ok) return { ok: false, error: cursorChecked.error };
   const hasCursor = typeof args.cursor === 'string';

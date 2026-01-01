@@ -218,16 +218,22 @@ Paging:
 
 The snapshot key binds paging to a specific workspace state so that a client cannot page across edits or other state changes.
 
-- `s = sha256hex("v1|snapshot|" + k + "|" + snapshotFingerprint)`
+- `s = sha256hex("v1|snapshot|" + k + "|" + epochTupleString)`
 
-`snapshotFingerprint` MUST be a deterministic string that changes whenever the tool’s canonical result set could change, including changes to:
+`epochTupleString` MUST be a deterministic string that changes whenever the tool’s canonical result set could change, including changes to:
 
 - workspace folder set and allowed roots
 - text documents (open/close/change/save)
 - files (create/delete/rename)
 - diagnostics (when relevant to the tool)
 
-The implementation may use one or more monotonically increasing epoch counters to construct `snapshotFingerprint`, but the resulting string MUST be stable for an unchanged workspace.
+The implementation MUST construct `epochTupleString` deterministically from:
+
+- `rootsKey = sha256hex(stableJsonStringify(sorted allowed roots))`
+- `epochTuple = comma-separated epoch integers in tool-specific order`
+- `epochTupleString = "roots:" + rootsKey + "|epochs:" + epochTuple`
+
+The resulting string MUST be stable for an unchanged workspace.
 
 ### 3.6.2 Epoch sources and tool mapping (normative)
 
@@ -238,11 +244,18 @@ Epoch counters are monotonic integers maintained by the server to capture worksp
 - `diagnosticsEpoch`: increment when VS Code diagnostics change.
 - `rootsEpoch`: increment when the workspace folder set or allowed roots change.
 
-Snapshot fingerprints for paged tools MUST incorporate the relevant epochs:
+Epoch tuples for paged tools MUST incorporate the relevant epochs:
 
 - `vscode.lsp.references`: `textEpoch`, `fsEpoch`, `rootsEpoch`
 - `vscode.lsp.workspaceSymbols`: `textEpoch`, `fsEpoch`, `rootsEpoch`
 - `vscode.lsp.diagnostics.workspace`: `diagnosticsEpoch`, `fsEpoch`, `rootsEpoch`
+
+The epoch tuple ordering used for snapshot keys is:
+
+- always `rootsEpoch` first
+- then `textEpoch` if applicable
+- then `fsEpoch` if applicable
+- then `diagnosticsEpoch` if applicable
 
 ### 3.7 Stable identifiers (when needed)
 
@@ -674,8 +687,8 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor snapshot key)**
 
-- `s = sha256hex("v1|snapshot|" + k + "|" + snapshotFingerprint)`
-  - `snapshotFingerprint` is implementation-defined, but MUST change when any workspace state that could affect workspace symbol results changes (see §3.6.1).
+- `s = sha256hex("v1|snapshot|" + k + "|" + epochTupleString)`
+  - `epochTupleString` is implementation-defined, but MUST change when any workspace state that could affect workspace symbol results changes (see §3.6.1).
 
 ---
 

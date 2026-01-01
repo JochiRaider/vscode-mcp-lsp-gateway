@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { LruCache } from './lruCache.js';
+import { formatEpochTupleString } from '../paging/cursor.js';
 import { stableJsonStringify } from '../../util/stableStringify.js';
 
 const PAGED_FULL_SET_PER_ENTRY_CAP_BYTES = 2 * 1024 * 1024;
@@ -105,12 +106,8 @@ export class ToolRuntime {
     allowedRootsRealpaths: readonly string[],
   ): string {
     const rootsKey = sha256hex(stableJsonStringify(sortRoots(allowedRootsRealpaths)));
-    const epochs = epochsForTool(toolName);
-    const parts = ['v1', `roots:${rootsKey}`, `rootsEpoch:${this.rootsEpoch}`];
-    if (epochs.text) parts.push(`text:${this.textEpoch}`);
-    if (epochs.fs) parts.push(`fs:${this.fsEpoch}`);
-    if (epochs.diagnostics) parts.push(`diag:${this.diagnosticsEpoch}`);
-    return parts.join('|');
+    const epochTuple = this.getEpochSnapshotForTool(toolName);
+    return formatEpochTupleString(rootsKey, epochTuple);
   }
 }
 
