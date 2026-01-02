@@ -184,7 +184,8 @@
     "format:check": "prettier --check .",
     "compile-tests": "tsc -p test/tsconfig.json && tsc -p test/tsconfig.src.json",
     "pretest": "npm run clean:src-artifacts && npm run compile && npm run lint && npm run format:check && npm run compile-tests",
-    "test": "vscode-test",
+    "test": "node scripts/vscode-test.mjs",
+    "test:integration": "vscode-test",
     "package:vsix": "npx @vscode/vsce package --no-dependencies"
   },
   "dependencies": {

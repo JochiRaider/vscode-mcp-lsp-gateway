@@ -83,6 +83,8 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 
 Notes:
 
+- `npm test` skips the VS Code integration runner when `CI` is set, unless `MCP_LSP_GATEWAY_FORCE_INTEGRATION_TESTS=1` is present.
+- To force-run integration tests in CI: `MCP_LSP_GATEWAY_FORCE_INTEGRATION_TESTS=1 npm test` or `npm run test:integration`.
 - Root `tsconfig.json` is scoped to `src/**`; test compilation is separate (`npm run compile-tests`).
 - Sandboxed/offline agent runners: `npm test` may fail due to environment limits in the VS Code/Electron harness,
   not due to project code. If (and only if) the failure matches a known sandbox signature, treat it as expected and
