@@ -18,6 +18,7 @@
 - `LICENSE` — MIT License granting broad permissions with warranty disclaimer and liability limits.
 - `README.md` — Brief overview of the VS Code MCP LSP gateway extension.
 - `docs/CONTRACT.md` — Authoritative v1 tool catalog, determinism rules, caps, and JSON-RPC error taxonomy.
+- `docs/CORE_FILES.md` — Quick list of contract-critical source and doc files.
 - `docs/PROTOCOL.md` — Streamable HTTP transport contract: endpoint, headers, status codes, init lifecycle.
 - `docs/SCHEMA.md` — Schema governance for v1 tools: dialect, layout, invariants, and change workflow.
 - `docs/SECURITY.md` — Threat model and enforced controls for localhost-only, read-only MCP gateway.
@@ -40,6 +41,10 @@
 - `schemas/tools/vscode.lsp.references.output.json` — Output schema for references: items list, nextCursor, optional summary.
 - `schemas/tools/vscode.lsp.workspaceSymbols.json` — Input schema for workspace symbols: query, cursor, and pageSize.
 - `schemas/tools/vscode.lsp.workspaceSymbols.output.json` — Output schema for workspace symbols: items list, nextCursor, optional summary.
+- `scripts/clean-src-artifacts.mjs` — Removes compiled .js artifacts from src to keep tree clean.
+- `scripts/vscode-test-gate.d.mts` — Type declarations for the VS Code test gate helper.
+- `scripts/vscode-test-gate.mjs` — Determines when integration tests should be skipped in CI.
+- `scripts/vscode-test.mjs` — Wrapper to run VS Code integration tests with skip logic.
 - `src/extension.ts` — Extension entrypoint: validates settings, manages token commands, starts/stops local server.
 - `src/logging/redact.ts` — Logging helpers that redact sensitive headers and tokens and truncate output.
 - `src/mcp/handler.ts` — MCP JSON-RPC handler: lifecycle, header enforcement, and tools/list/tools/call routing.
@@ -79,6 +84,7 @@
 - `test/unit/cursor.test.ts` — Unit tests for cursor encoding, validation, pagination, and cap errors.
 - `test/unit/definition-normalization.test.ts` — Unit tests for definition normalization and position validation.
 - `test/unit/diagnosticsDocument.test.ts` — Unit tests for document diagnostics normalization, ids, caps, and gating.
+- `test/unit/diagnosticsWorkspace-memoization.test.ts` — Unit tests for diagnostics workspace paging memoization behavior.
 - `test/unit/diagnosticsWorkspace.test.ts` — Unit tests for workspace diagnostics grouping, filtering, paging, and caps.
 - `test/unit/dispatcher.test.ts` — Unit test ensuring dispatcher rejects unknown tool names with INVALID_PARAMS.
 - `test/unit/documentSymbols.test.ts` — Unit tests for document symbol flattening, normalization, and cap enforcement.
@@ -86,16 +92,23 @@
 - `test/unit/httpServer-auth.test.ts` — Unit test ensuring server refuses start without configured bearer tokens.
 - `test/unit/ids.test.ts` — Unit tests for stable ID generation and sha256 format.
 - `test/unit/lruCache.test.ts` — Unit tests for LRU eviction, TTL, and size caps.
+- `test/unit/mcp-handler-lifecycle.test.ts` — Unit tests for MCP initialize and post-init header requirements.
 - `test/unit/mcp-handler-responseSize.test.ts` — Unit test for response size cap behavior in MCP handler.
 - `test/unit/redact.test.ts` — Unit tests for redacting tokens and session IDs in logs and headers.
+- `test/unit/references-memoization.test.ts` — Unit tests for references paging memoization behavior.
 - `test/unit/references-normalization.test.ts` — Unit tests for reference normalization, gating, and raw caps.
 - `test/unit/responseSize.test.ts` — Unit tests for response size helpers and hover truncation behavior.
 - `test/unit/router-boundary.test.ts` — Unit tests for router boundaries: auth, origin checks, and header allowlist.
+- `test/unit/session.test.ts` — Unit tests for session id minting, eviction, and validation.
 - `test/unit/sorting.test.ts` — Unit tests for sorting and dedupe helpers for locations and diagnostics.
 - `test/unit/stableStringify.test.ts` — Unit tests for stable JSON stringify ordering of objects and arrays.
 - `test/unit/tokenSecret.test.ts` — Unit tests for SecretStorage token parsing and auto-provision.
 - `test/unit/toolRuntime.test.ts` — Unit tests for ToolRuntime singleflight promise sharing.
 - `test/unit/toolsList-schemas.test.ts` — Unit tests ensuring tools/list includes input and output schemas for v1 tools.
+- `test/unit/unpaged-caching.test.ts` — Unit tests for unpaged tool caching and determinism behavior.
+- `test/unit/uri-gating.test.ts` — Unit tests for file URI normalization and allowed-root gating.
+- `test/unit/vscodeTestGate.test.ts` — Unit tests for test-gate CI skip logic and overrides.
+- `test/unit/workspaceSymbols-memoization.test.ts` — Unit tests for workspace symbol paging memoization behavior.
 - `test/unit/workspaceSymbols-normalization.test.ts` — Unit tests for workspace symbol normalization and query validation.
 - `tsconfig.eslint.json` — ESLint TypeScript project config covering src/test and root TS files.
 - `tsconfig.json` — TypeScript compiler configuration for src build output, strict NodeNext ES2022.
