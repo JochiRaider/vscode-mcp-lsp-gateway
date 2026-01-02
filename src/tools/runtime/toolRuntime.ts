@@ -9,6 +9,22 @@ const PAGED_FULL_SET_TTL_MS = 10_000;
 const UNPAGED_PER_ENTRY_CAP_BYTES = 1 * 1024 * 1024;
 const UNPAGED_TOTAL_CAP_BYTES = 5 * 1024 * 1024;
 
+export type CacheWriteGuard = Readonly<{ isActive: () => boolean }>;
+
+export function createCacheWriteGuard(): Readonly<{ guard: CacheWriteGuard; expire: () => void }> {
+  let active = true;
+  return {
+    guard: { isActive: () => active },
+    expire: () => {
+      active = false;
+    },
+  };
+}
+
+export function allowCacheWrite(guard: CacheWriteGuard | undefined): boolean {
+  return guard ? guard.isActive() : true;
+}
+
 export class ToolRuntime {
   private readonly inFlight = new Map<string, Promise<unknown>>();
   private readonly unpagedCaches = new Map<string, LruCache<string, unknown>>();

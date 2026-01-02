@@ -16,7 +16,7 @@ import {
   type WorkspaceGateErrorCode,
 } from '../../workspace/uri.js';
 import { stableJsonStringify } from '../../util/stableStringify.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareDocumentSymbols, dedupeSortedByKey } from '../sorting.js';
 
@@ -47,6 +47,7 @@ export type DocumentSymbolsDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 export async function handleDocumentSymbols(
@@ -101,7 +102,9 @@ export async function handleDocumentSymbols(
       : `Returned ${enforced.items.length} document symbols${enforced.capped ? ' (Capped.)' : '.'}`;
 
   const result = { symbols: enforced.items, summary };
-  cache.set(cacheKey, result);
+  if (allowCacheWrite(deps.cacheWriteGuard)) {
+    cache.set(cacheKey, result);
+  }
   return { ok: true, result };
 }
 

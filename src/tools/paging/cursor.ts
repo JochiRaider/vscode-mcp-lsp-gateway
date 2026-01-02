@@ -4,6 +4,7 @@
 
 import { createHash } from 'node:crypto';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
+import { stableJsonStringify } from '../../util/stableStringify.js';
 
 export const CURSOR_VERSION = 2 as const;
 export const ERROR_CODE_CURSOR_INVALID = 'MCP_LSP_GATEWAY/CURSOR_INVALID' as const;
@@ -25,8 +26,7 @@ export function computeRequestKey(
   toolName: string,
   parts: readonly (string | number | boolean)[],
 ): string {
-  const prefix = ['v1', toolName];
-  const keyInput = prefix.concat(parts.map((part) => String(part))).join('|');
+  const keyInput = stableJsonStringify(['v1', toolName, ...parts]);
   return sha256hex(keyInput);
 }
 

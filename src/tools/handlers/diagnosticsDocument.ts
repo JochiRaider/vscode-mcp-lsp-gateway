@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { stableJsonStringify } from '../../util/stableStringify.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import {
   canonicalDedupeKey,
   compareDiagnostics,
@@ -49,6 +49,7 @@ export type DiagnosticsDocumentDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 export async function handleDiagnosticsDocument(
@@ -99,7 +100,9 @@ export async function handleDiagnosticsDocument(
     diagnostics: enforced.items,
     summary,
   };
-  if (cacheKey) cache.set(cacheKey, result);
+  if (cacheKey && allowCacheWrite(deps.cacheWriteGuard)) {
+    cache.set(cacheKey, result);
+  }
 
   return {
     ok: true,

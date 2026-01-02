@@ -10,7 +10,7 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import { stableIdFromCanonicalString } from '../ids.js';
 import { canonicalDedupeKey, compareWorkspaceSymbols, dedupeSortedByKey } from '../sorting.js';
 import {
@@ -56,6 +56,7 @@ export type WorkspaceSymbolsDeps = Readonly<{
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 type CanonicalizeResult = Awaited<ReturnType<typeof canonicalizeFileUri>>;
@@ -116,8 +117,10 @@ export async function handleWorkspaceSymbols(
       const capError = checkWorkspaceSymbolsTotalCap(nextDeduped.length);
       if (capError) return { ok: false as const, error: capError };
 
-      const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextDeduped);
-      if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+      if (allowCacheWrite(deps.cacheWriteGuard)) {
+        const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextDeduped);
+        if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+      }
 
       return { ok: true as const, value: nextDeduped };
     });

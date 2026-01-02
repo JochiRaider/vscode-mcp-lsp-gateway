@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import {
   computeRequestKey,
   computeSnapshotKey,
@@ -52,6 +52,7 @@ export type DiagnosticsWorkspaceDeps = Readonly<{
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 export async function handleDiagnosticsWorkspace(
@@ -95,8 +96,10 @@ export async function handleDiagnosticsWorkspace(
       if (capError) return { ok: false as const, error: capError };
 
       const nextGroups = normalized.groups;
-      const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextGroups);
-      if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+      if (allowCacheWrite(deps.cacheWriteGuard)) {
+        const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextGroups);
+        if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+      }
 
       return { ok: true as const, value: nextGroups };
     });

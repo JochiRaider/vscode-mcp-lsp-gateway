@@ -15,7 +15,7 @@ import {
   isRealPathAllowed,
   type WorkspaceGateErrorCode,
 } from '../../workspace/uri.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import { canonicalDedupeKey, compareLocations, dedupeSortedByKey } from '../sorting.js';
 import {
   computeRequestKey,
@@ -56,6 +56,7 @@ export type ReferencesDeps = Readonly<{
   allowedRootsRealpaths: readonly string[];
   maxItemsPerPage: number;
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 export async function handleReferences(
@@ -130,8 +131,10 @@ export async function handleReferences(
       const capError = checkReferencesTotalCap(nextDeduped.length);
       if (capError) return { ok: false as const, error: capError };
 
-      const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextDeduped);
-      if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+      if (allowCacheWrite(deps.cacheWriteGuard)) {
+        const stored = deps.toolRuntime.pagedFullSetCache.set(snapshotKey, nextDeduped);
+        if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
+      }
 
       return { ok: true as const, value: nextDeduped };
     });

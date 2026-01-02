@@ -187,7 +187,7 @@ All paged tools MUST use the same cursor structure:
 - The cursor payload is JSON:
   - `v`: integer cursor format version (v2)
   - `o`: integer offset into the **canonical sorted, deduped** result list
-  - `k`: request key string (hex sha256 of canonical tool name + canonicalized input fields that affect the result)
+  - `k`: request key string (hex sha256 of `stableJsonStringify(["v1", toolName, ...canonical input fields])`)
   - `s`: snapshot key string (hex sha256; binds paging to a specific workspace state)
 
 - The cursor string is `base64url(utf8(JSON))` with no padding.
@@ -328,6 +328,7 @@ Paged tools MUST:
 ### 4.5 Timeouts and partial results
 
 - The server enforces a hard per-request timeout.
+- Timeouts are response timeouts; work that completes after a timeout MUST NOT mutate caches or other observable state.
 - If a timeout is reached before producing a complete canonical set, the server MUST return a deterministic error rather than nondeterministic partial results.
 
 ---
@@ -527,7 +528,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor request key)**
 
-- `k = sha256hex("v1|vscode.lsp.references|" + canonical_uri + "|" + line + "|" + character + "|" + includeDeclaration)`
+- `k = sha256hex(stableJsonStringify(["v1", "vscode.lsp.references", canonical_uri, line, character, includeDeclaration]))`
 
 ---
 
@@ -683,7 +684,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor request key)**
 
-- `k = sha256hex("v1|vscode.lsp.workspaceSymbols|" + normalized_query)`
+- `k = sha256hex(stableJsonStringify(["v1", "vscode.lsp.workspaceSymbols", normalized_query]))`
 
 **Stable id (cursor snapshot key)**
 
@@ -817,7 +818,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor request key)**
 
-- `k = sha256hex("v1|vscode.lsp.diagnostics.workspace")`
+- `k = sha256hex(stableJsonStringify(["v1", "vscode.lsp.diagnostics.workspace"]))`
 
 ---
 

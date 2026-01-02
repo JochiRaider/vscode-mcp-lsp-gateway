@@ -2,7 +2,6 @@ import { randomBytes } from 'node:crypto';
 
 export type SessionState = {
   protocolVersion: '2025-11-25';
-  createdAtMs: number;
   initializedNotificationSeen: boolean;
 };
 
@@ -30,11 +29,9 @@ export type CreateSessionStoreOptions = Readonly<{
    * Hard cap on concurrently tracked sessions.
    * When exceeded, evict the oldest (in insertion order).
    *
-   * Deterministic with respect to request sequence (no TTL by default).
+   * Deterministic with respect to request sequence (no TTL in v1).
    */
   maxSessions?: number;
-  /** Injectable clock for tests/diagnostics; default is Date.now. */
-  nowMs?: () => number;
 }>;
 
 export function mint(): string {
@@ -44,7 +41,6 @@ export function mint(): string {
 
 export function createSessionStore(opts: CreateSessionStoreOptions = {}): SessionStore {
   const maxSessions = clampInt(opts.maxSessions ?? 64, 1, 1024);
-  const nowMs = opts.nowMs ?? (() => Date.now());
 
   // Map iteration order is insertion order; used for deterministic eviction.
   const sessions = new Map<string, SessionState>();
@@ -62,7 +58,6 @@ export function createSessionStore(opts: CreateSessionStoreOptions = {}): Sessio
       const id = mint();
       sessions.set(id, {
         protocolVersion,
-        createdAtMs: nowMs(),
         initializedNotificationSeen: false,
       });
       evictIfNeeded();

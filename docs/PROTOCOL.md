@@ -104,6 +104,10 @@ Errors (when sessions are enabled and initialization has completed):
 - Missing `MCP-Session-Id`: `400 Bad Request`
 - Unknown/expired/terminated `MCP-Session-Id`: `404 Not Found`
 
+Notes:
+
+- In v1, “expired” means deterministically evicted from the session store (size cap). No TTL-based expiry is defined.
+
 ---
 
 ## 4. HTTP method handling

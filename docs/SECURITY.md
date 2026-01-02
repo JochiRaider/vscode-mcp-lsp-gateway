@@ -197,6 +197,10 @@ If sessions are enabled:
   - Unknown/expired session IDs MUST be rejected (`404 Not Found`).
 - Session IDs MUST NOT be treated as authorization and MUST NOT replace bearer auth.
 
+Notes:
+
+- In v1, “expired” means deterministically evicted from the session store (size cap). No TTL-based expiry is defined.
+
 Mitigates: replay and cross-session confusion.
 
 ### 4.7 Workspace and URI gating (inputs and outputs)

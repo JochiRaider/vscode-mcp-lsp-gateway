@@ -17,7 +17,7 @@ import {
   isRealPathAllowed,
 } from '../../workspace/uri.js';
 import { stableJsonStringify } from '../../util/stableStringify.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import { canonicalDedupeKey, compareLocations, dedupeSortedByKey } from '../sorting.js';
 
 const MAX_ITEMS_NONPAGED = 200;
@@ -47,6 +47,7 @@ export type DefinitionDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 export async function handleDefinition(
@@ -114,7 +115,9 @@ export async function handleDefinition(
       : `Found ${truncated.length} definitions.${deduped.length > MAX_ITEMS_NONPAGED ? ' (Capped.)' : ''}`;
 
   const result: DefinitionOutput = { locations: truncated, summary };
-  cache.set(cacheKey, result);
+  if (allowCacheWrite(deps.cacheWriteGuard)) {
+    cache.set(cacheKey, result);
+  }
   return { ok: true, result };
 }
 

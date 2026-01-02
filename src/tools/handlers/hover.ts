@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
 import { canonicalizeAndGateFileUri, type WorkspaceGateErrorCode } from '../../workspace/uri.js';
 import { stableJsonStringify } from '../../util/stableStringify.js';
-import type { ToolRuntime } from '../runtime/toolRuntime.js';
+import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 
 const E_INVALID_PARAMS = -32602;
 const E_INTERNAL = -32603;
@@ -39,6 +39,7 @@ export type HoverDeps = Readonly<{
   /** Canonical realpaths of allowlisted roots (workspace folders + additional roots). */
   allowedRootsRealpaths: readonly string[];
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<ToolResult> {
@@ -90,7 +91,9 @@ export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<To
     summary,
   };
 
-  cache.set(cacheKey, result);
+  if (allowCacheWrite(deps.cacheWriteGuard)) {
+    cache.set(cacheKey, result);
+  }
   return { ok: true, result };
 }
 

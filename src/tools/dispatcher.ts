@@ -20,7 +20,11 @@ import {
   type V1ToolName,
 } from './catalog.js';
 import type { SchemaRegistry } from './schemaRegistry.js';
-import type { ToolRuntime } from './runtime/toolRuntime.js';
+import {
+  createCacheWriteGuard,
+  type CacheWriteGuard,
+  type ToolRuntime,
+} from './runtime/toolRuntime.js';
 import { stableJsonStringify } from '../util/stableStringify.js';
 
 // Handlers
@@ -71,6 +75,7 @@ export type ToolsDispatcherDeps = Readonly<{
   maxItemsPerPage: number;
   requestTimeoutMs: number;
   toolRuntime: ToolRuntime;
+  cacheWriteGuard?: CacheWriteGuard;
 }>;
 
 type HandlerResult =
@@ -164,8 +169,13 @@ export async function dispatchToolCall(
 
   const normalizedArgs = normalizeValidatedArgs(validated.value, deps.maxItemsPerPage);
   const callKey = `${toolName}:${stableJsonStringify(normalizedArgs)}`;
+  const { guard, expire } = createCacheWriteGuard();
   const raced = await deps.toolRuntime.singleflight(callKey, () =>
-    withTimeout(handler(normalizedArgs, deps), deps.requestTimeoutMs),
+    withTimeout(
+      handler(normalizedArgs, { ...deps, cacheWriteGuard: guard }),
+      deps.requestTimeoutMs,
+      expire,
+    ),
   );
   if (raced.timedOut) {
     return { ok: false, error: capExceededError('Request timed out.') };
@@ -205,12 +215,19 @@ function extractSummary(v: unknown): string | undefined {
 
 type TimeoutResult<T> = Readonly<{ timedOut: true }> | Readonly<{ timedOut: false; value: T }>;
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<TimeoutResult<T>> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout?: () => void,
+): Promise<TimeoutResult<T>> {
   const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : 1;
   let timeoutId: NodeJS.Timeout | undefined;
 
   const timeout = new Promise<TimeoutResult<T>>((resolve) => {
-    timeoutId = setTimeout(() => resolve({ timedOut: true }), safeTimeoutMs);
+    timeoutId = setTimeout(() => {
+      onTimeout?.();
+      resolve({ timedOut: true });
+    }, safeTimeoutMs);
   });
 
   const raced = Promise.race([

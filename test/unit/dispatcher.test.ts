@@ -3,8 +3,10 @@ import * as path from 'node:path';
 import { expect } from 'chai';
 import * as vscode from 'vscode';
 import { dispatchToolCall } from '../../src/tools/dispatcher.js';
+import { computeRequestKey, computeSnapshotKey } from '../../src/tools/paging/cursor.js';
 import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 import { SchemaRegistry } from '../../src/tools/schemaRegistry.js';
+import { canonicalizeAndGateFileUri } from '../../src/workspace/uri.js';
 
 function createTestContext(repoRoot: string): vscode.ExtensionContext {
   return {
@@ -226,6 +228,74 @@ describe('dispatcher', () => {
       }
     } finally {
       slowDisposable.dispose();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not mutate paged caches after a timeout', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const context = createTestContext(repoRoot);
+    const schemaRegistry = await SchemaRegistry.create(context);
+    const tempDir = fs.mkdtempSync(path.join(repoRoot, 'tmp-dispatcher-timeout-'));
+    const tempFile = path.join(tempDir, 'c.txt');
+    fs.writeFileSync(tempFile, 'const z = 3;', 'utf8');
+
+    const uri = vscode.Uri.file(tempFile);
+    const toolRuntime = new ToolRuntime();
+    const deps = {
+      schemaRegistry,
+      allowedRootsRealpaths: [fs.realpathSync(tempDir)],
+      maxItemsPerPage: 200,
+      requestTimeoutMs: 5,
+      toolRuntime,
+    };
+
+    const disposable = vscode.languages.registerReferenceProvider(
+      { scheme: 'file', language: 'plaintext' },
+      {
+        provideReferences: () =>
+          new Promise((resolve) => {
+            setTimeout(
+              () =>
+                resolve([
+                  new vscode.Location(
+                    uri,
+                    new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1)),
+                  ),
+                ]),
+              50,
+            );
+          }),
+      },
+    );
+
+    try {
+      const res = await dispatchToolCall(
+        'vscode.lsp.references',
+        { uri: uri.toString(), position: { line: 0, character: 0 } },
+        deps,
+      );
+      expect(res.ok).to.equal(false);
+      if (!res.ok) {
+        const code = (res.error.data as { code?: string }).code;
+        expect(code).to.equal('MCP_LSP_GATEWAY/CAP_EXCEEDED');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const gated = await canonicalizeAndGateFileUri(uri.toString(), deps.allowedRootsRealpaths);
+      expect(gated.ok).to.equal(true);
+      if (!gated.ok) return;
+      const requestKey = computeRequestKey('vscode.lsp.references', [gated.value.uri, 0, 0, false]);
+      const epochTupleString = toolRuntime.getSnapshotFingerprint(
+        'vscode.lsp.references',
+        deps.allowedRootsRealpaths,
+      );
+      const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);
+      const cached = toolRuntime.pagedFullSetCache.get(snapshotKey);
+      expect(cached).to.equal(undefined);
+    } finally {
+      disposable.dispose();
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });

@@ -29,6 +29,16 @@ describe('cursor helpers', () => {
     expect(decoded).to.deep.equal({ v: 2, o: 5, k: key, s: snapshotKey });
   });
 
+  it('derives request keys from structured inputs without delimiter collisions', () => {
+    const key1 = computeRequestKey('vscode.lsp.workspaceSymbols', ['a|b', 'c']);
+    const key2 = computeRequestKey('vscode.lsp.workspaceSymbols', ['a', 'b|c']);
+    expect(key1).to.not.equal(key2);
+
+    const key3 = computeRequestKey('vscode.lsp.workspaceSymbols', ['1', 2]);
+    const key4 = computeRequestKey('vscode.lsp.workspaceSymbols', [1, '2']);
+    expect(key3).to.not.equal(key4);
+  });
+
   it('derives snapshot keys from a stable epoch tuple string', () => {
     const requestKey = 'request-key';
     const epochTupleString = formatEpochTupleString('roots-key', [3, 7, 11]);
