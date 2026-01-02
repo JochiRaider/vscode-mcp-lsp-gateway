@@ -4,8 +4,10 @@ import { expect } from 'chai';
 import * as vscode from 'vscode';
 import { createMcpPostHandler } from '../../src/mcp/handler.js';
 import type { McpPostHandler, McpPostResult } from '../../src/server/router.js';
+import { dispatchToolsList } from '../../src/tools/dispatcher.js';
 import { SchemaRegistry } from '../../src/tools/schemaRegistry.js';
 import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
+import { jsonByteLength } from '../../src/util/responseSize.js';
 
 function createTestContext(repoRoot: string): vscode.ExtensionContext {
   return {
@@ -29,6 +31,111 @@ async function invokeHandler(
 }
 
 describe('mcp handler response size', () => {
+  it('returns CAP_EXCEEDED when initialize response exceeds maxResponseBytes', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const context = createTestContext(repoRoot);
+    const schemaRegistry: SchemaRegistry = await SchemaRegistry.create(context);
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+
+    const initResult = {
+      protocolVersion: '2025-11-25',
+      capabilities: { tools: { listChanged: false } },
+      serverInfo: { name: 'test', version: '0.0.0' },
+    };
+    const initResponseBytes = jsonByteLength({ jsonrpc: '2.0', id: 1, result: initResult });
+
+    const handler = createMcpPostHandler({
+      protocolVersion: '2025-11-25',
+      serverInfo: { name: 'test', version: '0.0.0' },
+      enableSessions: false,
+      schemaRegistry,
+      toolRuntime: new ToolRuntime(),
+      maxItemsPerPage: 200,
+      maxResponseBytes: Math.max(1, initResponseBytes - 1),
+      requestTimeoutMs: 1000,
+      allowedRootsRealpaths,
+    });
+
+    const init = await invokeHandler(
+      handler,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-11-25' },
+      },
+      {},
+    );
+    expect(init.status).to.equal(200);
+    const parsed = JSON.parse(init.bodyText ?? '{}') as Record<string, unknown>;
+    const error = parsed.error as { code?: number; data?: { code?: string } } | undefined;
+    expect(error?.code).to.equal(-32603);
+    expect(error?.data?.code).to.equal('MCP_LSP_GATEWAY/CAP_EXCEEDED');
+  });
+
+  it('returns CAP_EXCEEDED when tools/list response exceeds maxResponseBytes', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const context = createTestContext(repoRoot);
+    const schemaRegistry: SchemaRegistry = await SchemaRegistry.create(context);
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+
+    const initResult = {
+      protocolVersion: '2025-11-25',
+      capabilities: { tools: { listChanged: false } },
+      serverInfo: { name: 'test', version: '0.0.0' },
+    };
+    const initResponseBytes = jsonByteLength({ jsonrpc: '2.0', id: 1, result: initResult });
+    const toolsListResult = dispatchToolsList(schemaRegistry);
+    const toolsListResponseBytes = jsonByteLength({
+      jsonrpc: '2.0',
+      id: 2,
+      result: toolsListResult,
+    });
+    expect(toolsListResponseBytes).to.be.greaterThan(initResponseBytes);
+
+    const handler = createMcpPostHandler({
+      protocolVersion: '2025-11-25',
+      serverInfo: { name: 'test', version: '0.0.0' },
+      enableSessions: false,
+      schemaRegistry,
+      toolRuntime: new ToolRuntime(),
+      maxItemsPerPage: 200,
+      maxResponseBytes: initResponseBytes,
+      requestTimeoutMs: 1000,
+      allowedRootsRealpaths,
+    });
+
+    const init = await invokeHandler(
+      handler,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-11-25' },
+      },
+      {},
+    );
+    expect(init.status).to.equal(200);
+
+    const initialized = await invokeHandler(
+      handler,
+      { jsonrpc: '2.0', method: 'notifications/initialized', params: {} },
+      { 'mcp-protocol-version': '2025-11-25' },
+    );
+    expect(initialized.status).to.equal(202);
+
+    const res = await invokeHandler(
+      handler,
+      { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+      { 'mcp-protocol-version': '2025-11-25' },
+    );
+    expect(res.status).to.equal(200);
+    const parsed = JSON.parse(res.bodyText ?? '{}') as Record<string, unknown>;
+    const error = parsed.error as { code?: number; data?: { code?: string } } | undefined;
+    expect(error?.code).to.equal(-32603);
+    expect(error?.data?.code).to.equal('MCP_LSP_GATEWAY/CAP_EXCEEDED');
+  });
+
   it('returns CAP_EXCEEDED when response exceeds maxResponseBytes', async () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
     const context = createTestContext(repoRoot);

@@ -148,9 +148,6 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         });
       }
 
-      // Success path:
-      didAnyInitializeSucceed = true;
-
       const result: InitializeResult = {
         protocolVersion: opts.protocolVersion,
         capabilities: {
@@ -159,13 +156,22 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         serverInfo: opts.serverInfo,
       };
 
+      const initResponse = jsonRpcResultResponseWithCap(req.id, result, opts.maxResponseBytes);
+      if (!initResponse.ok) return initResponse.response;
+
+      // Success path:
+      didAnyInitializeSucceed = true;
+
       if (opts.enableSessions) {
         // Mint and attach MCP-Session-Id header.
         const sessionId = sessionStore!.create(opts.protocolVersion);
-        return jsonRpcResultResponse(req.id, result, { 'MCP-Session-Id': sessionId });
+        return {
+          ...initResponse.response,
+          headers: { 'MCP-Session-Id': sessionId },
+        };
       }
 
-      return jsonRpcResultResponse(req.id, result);
+      return initResponse.response;
     }
 
     // --- notifications/initialized ----------------------------------------
@@ -185,6 +191,13 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         /* allowMissingProtocolVersionForThisCall */ allowMissingPv,
       );
       if (!hdr.ok) return { status: hdr.status };
+
+      if (parsed.message.kind === 'request') {
+        return jsonRpcErrorResponse(parsed.message.msg.id, {
+          code: -32600,
+          message: 'Invalid Request',
+        });
+      }
 
       if (opts.enableSessions) {
         const sid = hdr.sessionId!;
@@ -257,7 +270,8 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     // --- ping --------------------------------------------------------------
     if (method === 'ping') {
       // Keep result deterministic and minimal.
-      return jsonRpcResultResponse(req.id, {});
+      const response = jsonRpcResultResponseWithCap(req.id, {}, opts.maxResponseBytes);
+      return response.response;
     }
 
     // --- tools/list --------------------------------------------------------
@@ -281,7 +295,12 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       }
 
       // MCP semantics: { tools: [...], nextCursor?: undefined }
-      return jsonRpcResultResponse(req.id, dispatchToolsList(opts.schemaRegistry));
+      const response = jsonRpcResultResponseWithCap(
+        req.id,
+        dispatchToolsList(opts.schemaRegistry),
+        opts.maxResponseBytes,
+      );
+      return response.response;
     }
 
     // --- tools/call --------------------------------------------------------
@@ -313,14 +332,8 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
               jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
             ).result
           : dispatched.result;
-      const response = jsonRpcResultResponse(req.id, toolResult);
-      if (response.bodyText && exceedsMaxResponseBytes(response.bodyText, opts.maxResponseBytes)) {
-        return jsonRpcErrorResponse(
-          req.id,
-          capExceededError('Response exceeded maxResponseBytes.'),
-        );
-      }
-      return response;
+      const response = jsonRpcResultResponseWithCap(req.id, toolResult, opts.maxResponseBytes);
+      return response.response;
     }
 
     // Default: method not found.
@@ -340,6 +353,25 @@ function jsonRpcResultResponse(
     bodyText,
   };
   return response;
+}
+
+type JsonRpcResultWithCap =
+  | Readonly<{ ok: true; response: McpPostResult }>
+  | Readonly<{ ok: false; response: McpPostResult }>;
+
+function jsonRpcResultResponseWithCap(
+  id: JsonRpcId,
+  result: unknown,
+  maxResponseBytes: number,
+): JsonRpcResultWithCap {
+  const response = jsonRpcResultResponse(id, result);
+  if (response.bodyText && exceedsMaxResponseBytes(response.bodyText, maxResponseBytes)) {
+    return {
+      ok: false,
+      response: jsonRpcErrorResponse(id, capExceededError('Response exceeded maxResponseBytes.')),
+    };
+  }
+  return { ok: true, response };
 }
 
 function jsonRpcErrorResponse(id: JsonRpcId, error: JsonRpcErrorObject): McpPostResult {
