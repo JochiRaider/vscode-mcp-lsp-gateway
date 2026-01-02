@@ -14,6 +14,8 @@ const options = {
   target: 'node20',
   sourcemap: !isProduction,
   minify: isProduction,
+  packages: 'bundle',
+  metafile: true,
   external: ['vscode'],
   logLevel: 'info',
 };

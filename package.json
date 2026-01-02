@@ -4,7 +4,7 @@
   "description": "Local-only, read-only MCP server (Protocol 2025-11-25) exposing VS Code language features to GPT-5.2-Codex over Streamable HTTP.",
   "version": "0.1.0",
   "type": "module",
-  "publisher": "vsce publish",
+  "publisher": "local",
   "license": "MIT",
   "icon": "icon.png",
   "repository": {
@@ -27,13 +27,6 @@
     "json-rpc"
   ],
   "main": "./dist/extension.js",
-  "files": [
-    "dist/**",
-    "docs/**",
-    "schemas/**",
-    "README.md",
-    "LICENSE"
-  ],
   "engines": {
     "vscode": "^1.107.0"
   },
