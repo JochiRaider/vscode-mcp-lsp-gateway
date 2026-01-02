@@ -1,6 +1,7 @@
 // src/extensions.ts
 
 import * as vscode from 'vscode';
+import { createLogger } from './logging/redact.js';
 import { createMcpPostHandler } from './mcp/handler.js';
 import { SchemaRegistry } from './tools/schemaRegistry.js';
 import { HttpServer } from './server/httpServer.js';
@@ -335,6 +336,7 @@ class ExtensionRuntime {
     this.toolRuntime = toolRuntime;
     this.registerRuntimeWatchers(toolRuntime);
 
+    const logger = createLogger(this.output, { debugEnabled: settings.debugLogging });
     const onMcpPost = createMcpPostHandler({
       protocolVersion: '2025-11-25',
       serverInfo,
@@ -345,6 +347,7 @@ class ExtensionRuntime {
       maxResponseBytes: settings.maxResponseBytes,
       requestTimeoutMs: settings.requestTimeoutMs,
       allowedRootsRealpaths,
+      logger,
       // Keep fail-closed unless you have a reproduced interop issue + a smoke test.
       allowMissingProtocolVersionOnInitializedNotification: false,
     });

@@ -12,6 +12,8 @@
 // - All HTTP-layer rejections return empty bodies (fail-closed), even for JSON-RPC requests with ids.
 
 import { createSessionStore, type SessionStore } from '../server/session.js';
+import type { Logger } from '../logging/redact.js';
+import { redactString } from '../logging/redact.js';
 import type { McpPostContext, McpPostHandler, McpPostResult } from '../server/router.js';
 import { parseJsonRpcMessage, type JsonRpcId, type JsonRpcErrorObject } from './jsonrpc.js';
 import { dispatchToolsList, dispatchToolCall } from '../tools/dispatcher.js';
@@ -39,6 +41,10 @@ export type CreateMcpPostHandlerOptions = Readonly<{
    */
   allowedRootsRealpaths: readonly string[];
   /**
+   * Optional logger for unexpected internal errors.
+   */
+  logger?: Logger;
+  /**
    * Interop escape hatch:
    * If (and only if) you reproduce a client that omits MCP-Protocol-Version on notifications/initialized,
    * you may allow that one request to pass without the header.
@@ -61,6 +67,7 @@ type InitializeResult = Readonly<{
 const ERR_CURSOR_INVALID = 'MCP_LSP_GATEWAY/CURSOR_INVALID' as const;
 const ERR_CAP_EXCEEDED = 'MCP_LSP_GATEWAY/CAP_EXCEEDED' as const;
 const ERR_INVALID_PARAMS = 'MCP_LSP_GATEWAY/INVALID_PARAMS' as const;
+const ERR_INTERNAL = 'MCP_LSP_GATEWAY/INTERNAL' as const;
 
 export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPostHandler {
   // Global init state (used when sessions are disabled).
@@ -305,35 +312,41 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
     // --- tools/call --------------------------------------------------------
     if (method === 'tools/call') {
-      const parsedCall = parseToolsCallParams(req.params);
-      if (!parsedCall.ok) {
-        return jsonRpcErrorResponse(req.id, {
-          code: -32602,
-          message: 'Invalid params',
-          data: { code: ERR_INVALID_PARAMS },
+      let toolName: string | undefined;
+      try {
+        const parsedCall = parseToolsCallParams(req.params);
+        if (!parsedCall.ok) {
+          return jsonRpcErrorResponse(req.id, {
+            code: -32602,
+            message: 'Invalid params',
+            data: { code: ERR_INVALID_PARAMS },
+          });
+        }
+
+        toolName = parsedCall.name;
+        const args = parsedCall.arguments;
+
+        const dispatched = await dispatchToolCall(toolName, args, {
+          schemaRegistry: opts.schemaRegistry,
+          allowedRootsRealpaths: opts.allowedRootsRealpaths,
+          maxItemsPerPage: opts.maxItemsPerPage,
+          requestTimeoutMs: opts.requestTimeoutMs,
+          toolRuntime: opts.toolRuntime,
         });
+
+        if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
+        const toolResult =
+          toolName === 'vscode.lsp.hover'
+            ? truncateHoverToolCallResult(dispatched.result, opts.maxResponseBytes, (candidate) =>
+                jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
+              ).result
+            : dispatched.result;
+        const response = jsonRpcResultResponseWithCap(req.id, toolResult, opts.maxResponseBytes);
+        return response.response;
+      } catch (err) {
+        logUnexpectedToolError(opts.logger, toolName, err);
+        return jsonRpcErrorResponse(req.id, internalError());
       }
-
-      const toolName = parsedCall.name;
-      const args = parsedCall.arguments;
-
-      const dispatched = await dispatchToolCall(toolName, args, {
-        schemaRegistry: opts.schemaRegistry,
-        allowedRootsRealpaths: opts.allowedRootsRealpaths,
-        maxItemsPerPage: opts.maxItemsPerPage,
-        requestTimeoutMs: opts.requestTimeoutMs,
-        toolRuntime: opts.toolRuntime,
-      });
-
-      if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
-      const toolResult =
-        toolName === 'vscode.lsp.hover'
-          ? truncateHoverToolCallResult(dispatched.result, opts.maxResponseBytes, (candidate) =>
-              jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
-            ).result
-          : dispatched.result;
-      const response = jsonRpcResultResponseWithCap(req.id, toolResult, opts.maxResponseBytes);
-      return response.response;
     }
 
     // Default: method not found.
@@ -393,6 +406,14 @@ function capExceededError(message: string): JsonRpcErrorObject {
   };
 }
 
+function internalError(): JsonRpcErrorObject {
+  return {
+    code: -32603,
+    message: 'Internal error',
+    data: { code: ERR_INTERNAL },
+  };
+}
+
 function exceedsMaxResponseBytes(bodyText: string, maxResponseBytes: number): boolean {
   if (!Number.isFinite(maxResponseBytes) || maxResponseBytes <= 0) return false;
   return utf8ByteLength(bodyText) > Math.floor(maxResponseBytes);
@@ -448,4 +469,43 @@ function getHeader(
     if (k.toLowerCase() === target && v) return v;
   }
   return undefined;
+}
+
+function logUnexpectedToolError(
+  logger: Logger | undefined,
+  toolName: string | undefined,
+  err: unknown,
+): void {
+  if (!logger) return;
+  logger.error('Unexpected error during tools/call.', {
+    tool: toolName ?? 'unknown',
+    error: sanitizeErrorForLog(err),
+  });
+}
+
+function sanitizeErrorForLog(err: unknown): Record<string, string> {
+  const asError = err instanceof Error;
+  const name = asError && err.name ? err.name : 'Error';
+  const message = asError && err.message ? err.message : String(err);
+  const stack = asError && typeof err.stack === 'string' ? err.stack : undefined;
+
+  const sanitized: Record<string, string> = {
+    name: sanitizeLogString(name),
+    message: sanitizeLogString(message),
+  };
+  if (stack) sanitized.stack = sanitizeLogString(stack);
+  return sanitized;
+}
+
+function sanitizeLogString(value: string): string {
+  return redactPathLike(redactString(value));
+}
+
+function redactPathLike(value: string): string {
+  const redacted = value
+    .replace(/file:\/\/\/[^\s)]+/g, 'file:///[REDACTED_PATH]')
+    .replace(/(^|[\s(])\/[^\s)]+/g, '$1[REDACTED_PATH]')
+    .replace(/(^|[\s(])[A-Za-z]:\\[^\s)]+/g, '$1[REDACTED_PATH]')
+    .replace(/(^|[\s(])\\\\[^\s)]+/g, '$1[REDACTED_PATH]');
+  return redacted;
 }
