@@ -6,7 +6,7 @@
 //
 // Conventions (v1):
 // - One input schema file per tool, named: `schemas/tools/<toolName>.json`
-//   Example: `schemas/tools/vscode.lsp.definition.json`
+//   Example: `schemas/tools/vscode_lsp_definition.json`
 // - One output schema file per tool, named: `schemas/tools/<toolName>.output.json`
 // - Root schema MUST be an object schema and MUST set `additionalProperties: false`.
 //
@@ -18,7 +18,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { Ajv, type ErrorObject, type ValidateFunction } from 'ajv';
+import Ajv2020Import from 'ajv/dist/2020.js';
+import type { ErrorObject, Options, ValidateFunction } from 'ajv';
+
+// If TS reports “not constructable”, cast to a constructor type.
+const Ajv2020 = Ajv2020Import as unknown as new (opts?: Options) => {
+  compile(schema: unknown): ValidateFunction;
+  errors?: unknown;
+};
 
 import type { JsonRpcErrorObject } from '../mcp/jsonrpc.js';
 import { V1_TOOL_NAMES, type V1ToolName, type JsonSchemaObject, isV1ToolName } from './catalog.js';
@@ -56,7 +63,7 @@ export class SchemaRegistry {
       );
     }
 
-    const ajv = new Ajv({
+    const ajv = new Ajv2020({
       allErrors: true,
       strict: true,
       allowUnionTypes: true,

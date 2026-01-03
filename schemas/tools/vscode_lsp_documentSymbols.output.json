@@ -1,16 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.diagnostics.document.output.json",
-  "title": "vscode.lsp.diagnostics.document — output schema",
-  "description": "StructuredContent for vscode.lsp.diagnostics.document.",
+  "$id": "schemas/tools/vscode_lsp_documentSymbols.output.json",
+  "title": "vscode_lsp_documentSymbols — output schema",
+  "description": "StructuredContent for vscode_lsp_documentSymbols.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["uri", "diagnostics"],
+  "required": ["symbols"],
   "properties": {
-    "uri": { "type": "string", "minLength": 1, "pattern": "^file:" },
-    "diagnostics": {
+    "symbols": {
       "type": "array",
-      "items": { "$ref": "#/$defs/diagnostic" }
+      "items": { "$ref": "#/$defs/documentSymbol" }
     },
     "summary": {
       "type": "string",
@@ -36,17 +35,17 @@
         "end": { "$ref": "#/$defs/position" }
       }
     },
-    "diagnostic": {
+    "documentSymbol": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "range", "message"],
+      "required": ["id", "name", "kind", "range", "selectionRange"],
       "properties": {
         "id": { "type": "string", "minLength": 1, "pattern": "^sha256:" },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "integer", "minimum": 0 },
         "range": { "$ref": "#/$defs/range" },
-        "severity": { "type": "integer", "minimum": 0 },
-        "code": { "type": "string", "minLength": 1 },
-        "source": { "type": "string", "minLength": 1 },
-        "message": { "type": "string", "minLength": 1 }
+        "selectionRange": { "$ref": "#/$defs/range" },
+        "containerName": { "type": "string", "minLength": 1 }
       }
     }
   }

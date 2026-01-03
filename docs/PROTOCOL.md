@@ -149,6 +149,9 @@ The server MAY return:
 - `initialize` MUST be a JSON-RPC request (i.e., it MUST include an `id`).
 - `initialize.params.protocolVersion` MUST be `2025-11-25`.
   - If missing or not `2025-11-25`, the server returns a JSON-RPC error for invalid params (see §6.2).
+  - Opt-in interop: when `mcpLspGateway.allowLegacyInitializeProtocolVersion` is enabled, `initialize.params.protocolVersion`
+    MAY be `2025-06-18` or `2025-11-25`. The server still responds with `protocolVersion: 2025-11-25`, and post-init
+    header enforcement is unchanged.
 
 ### 5.3 Pre-init vs post-init rules
 
@@ -286,7 +289,7 @@ HTTP request:
 
 Body (single JSON-RPC object):
 
-- `{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"vscode.lsp.definition","arguments":{...}}}`
+- `{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"vscode_lsp_definition","arguments":{...}}}`
 
 HTTP response:
 

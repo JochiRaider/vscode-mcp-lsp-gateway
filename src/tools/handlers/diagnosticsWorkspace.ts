@@ -1,6 +1,6 @@
 // src/tools/handlers/diagnosticsWorkspace.ts
 //
-// vscode.lsp.diagnostics.workspace (v1)
+// vscode_lsp_diagnostics_workspace (v1)
 // - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - Canonicalize and filter URIs to allowed roots
 // - Normalize diagnostics per file deterministically (sort/dedupe/cap)
@@ -20,7 +20,7 @@ import {
 } from '../paging/cursor.js';
 import { enforceDiagnosticsCap, normalizeDiagnostics } from './diagnosticsDocument.js';
 
-const TOOL_NAME = 'vscode.lsp.diagnostics.workspace' as const;
+const TOOL_NAME = 'vscode_lsp_diagnostics_workspace' as const;
 const MAX_WORKSPACE_DIAGNOSTICS_ITEMS_TOTAL = 5000;
 const MAX_PAGE_SIZE = 200;
 const DEFAULT_PAGE_SIZE = 100;

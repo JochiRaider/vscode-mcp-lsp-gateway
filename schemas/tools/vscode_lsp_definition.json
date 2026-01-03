@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.definition.json",
-  "title": "vscode.lsp.definition — input schema",
+  "$id": "schemas/tools/vscode_lsp_definition.json",
+  "title": "vscode_lsp_definition — input schema",
   "description": "Find definition location(s) for the symbol at a given position in a file.",
   "type": "object",
   "additionalProperties": false,

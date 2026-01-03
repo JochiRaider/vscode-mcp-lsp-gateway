@@ -131,10 +131,10 @@ type EpochMask = Readonly<{ text: boolean; fs: boolean; diagnostics: boolean }>;
 
 function epochsForTool(toolName: string): EpochMask {
   switch (toolName) {
-    case 'vscode.lsp.references':
-    case 'vscode.lsp.workspaceSymbols':
+    case 'vscode_lsp_references':
+    case 'vscode_lsp_workspaceSymbols':
       return { text: true, fs: true, diagnostics: false };
-    case 'vscode.lsp.diagnostics.workspace':
+    case 'vscode_lsp_diagnostics_workspace':
       return { text: false, fs: true, diagnostics: true };
     default:
       return { text: true, fs: true, diagnostics: true };

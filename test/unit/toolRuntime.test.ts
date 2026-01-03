@@ -75,66 +75,66 @@ describe('ToolRuntime epochs', () => {
   it('returns a stable snapshot ordering per tool', () => {
     const runtime = new ToolRuntime();
 
-    const references = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const references = runtime.getEpochSnapshotForTool('vscode_lsp_references');
     expect(references.length).to.equal(3);
 
     const workspaceDiagnostics = runtime.getEpochSnapshotForTool(
-      'vscode.lsp.diagnostics.workspace',
+      'vscode_lsp_diagnostics_workspace',
     );
     expect(workspaceDiagnostics.length).to.equal(3);
 
-    const hover = runtime.getEpochSnapshotForTool('vscode.lsp.hover');
+    const hover = runtime.getEpochSnapshotForTool('vscode_lsp_hover');
     expect(hover.length).to.equal(4);
   });
 
   it('coalesces text epoch bumps within a tick', async () => {
     const runtime = new ToolRuntime();
-    const before = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const before = runtime.getEpochSnapshotForTool('vscode_lsp_references');
 
     runtime.bumpTextEpoch();
     runtime.bumpTextEpoch();
     runtime.bumpTextEpoch();
 
-    const mid = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const mid = runtime.getEpochSnapshotForTool('vscode_lsp_references');
     expect(getEpochAt(mid, 1)).to.equal(getEpochAt(before, 1));
 
     await flushMicrotasks();
 
-    const after = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const after = runtime.getEpochSnapshotForTool('vscode_lsp_references');
     expect(getEpochAt(after, 1)).to.equal(getEpochAt(before, 1) + 1);
 
     runtime.bumpTextEpoch();
     await flushMicrotasks();
 
-    const afterSecond = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const afterSecond = runtime.getEpochSnapshotForTool('vscode_lsp_references');
     expect(getEpochAt(afterSecond, 1)).to.equal(getEpochAt(before, 1) + 2);
   });
 
   it('coalesces diagnostics epoch bumps within a tick', async () => {
     const runtime = new ToolRuntime();
-    const before = runtime.getEpochSnapshotForTool('vscode.lsp.diagnostics.workspace');
+    const before = runtime.getEpochSnapshotForTool('vscode_lsp_diagnostics_workspace');
 
     runtime.bumpDiagnosticsEpoch();
     runtime.bumpDiagnosticsEpoch();
 
-    const mid = runtime.getEpochSnapshotForTool('vscode.lsp.diagnostics.workspace');
+    const mid = runtime.getEpochSnapshotForTool('vscode_lsp_diagnostics_workspace');
     expect(getEpochAt(mid, 2)).to.equal(getEpochAt(before, 2));
 
     await flushMicrotasks();
 
-    const after = runtime.getEpochSnapshotForTool('vscode.lsp.diagnostics.workspace');
+    const after = runtime.getEpochSnapshotForTool('vscode_lsp_diagnostics_workspace');
     expect(getEpochAt(after, 2)).to.equal(getEpochAt(before, 2) + 1);
   });
 
   it('does not apply pending bumps after dispose', async () => {
     const runtime = new ToolRuntime();
-    const before = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const before = runtime.getEpochSnapshotForTool('vscode_lsp_references');
 
     runtime.bumpTextEpoch();
     runtime.dispose();
     await flushMicrotasks();
 
-    const after = runtime.getEpochSnapshotForTool('vscode.lsp.references');
+    const after = runtime.getEpochSnapshotForTool('vscode_lsp_references');
     expect(getEpochAt(after, 1)).to.equal(getEpochAt(before, 1));
   });
 });

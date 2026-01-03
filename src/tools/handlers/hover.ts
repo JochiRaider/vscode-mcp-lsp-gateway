@@ -1,6 +1,6 @@
 // src/tools/handlers/hover.ts
 //
-// vscode.lsp.hover (v1)
+// vscode_lsp_hover (v1)
 // - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Executes VS Code's hover provider and normalizes contents deterministically
@@ -59,13 +59,13 @@ export async function handleHover(args: HoverInput, deps: HoverDeps): Promise<To
   }
 
   const cacheKey = stableJsonStringify({
-    tool: 'vscode.lsp.hover',
+    tool: 'vscode_lsp_hover',
     uri: gated.value.uri,
     v: doc.version,
     line: args.position.line,
     character: args.position.character,
   });
-  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.hover');
+  const cache = deps.toolRuntime.getUnpagedCache('vscode_lsp_hover');
   const cached = cache.get(cacheKey) as HoverOutput | undefined;
   if (cached) return { ok: true, result: cached };
 

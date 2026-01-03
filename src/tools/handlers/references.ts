@@ -1,6 +1,6 @@
 // src/tools/handlers/references.ts
 //
-// vscode.lsp.references (v1)
+// vscode_lsp_references (v1)
 // - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Executes VS Code's reference provider and normalizes to contract Location[]
@@ -26,7 +26,7 @@ import {
   validateCursor,
 } from '../paging/cursor.js';
 
-const TOOL_NAME = 'vscode.lsp.references' as const;
+const TOOL_NAME = 'vscode_lsp_references' as const;
 const MAX_REFERENCES_ITEMS_TOTAL = 20000;
 export const MAX_REFERENCES_ITEMS_RAW = MAX_REFERENCES_ITEMS_TOTAL * 4;
 const MAX_PAGE_SIZE = 200;

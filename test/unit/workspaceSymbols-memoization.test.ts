@@ -76,9 +76,9 @@ describe('workspaceSymbols memoization', () => {
       expect(secondResult.items.length).to.equal(1);
       expect(calls).to.equal(1);
 
-      const requestKey = computeRequestKey('vscode.lsp.workspaceSymbols', ['foo']);
+      const requestKey = computeRequestKey('vscode_lsp_workspaceSymbols', ['foo']);
       const epochTupleString = toolRuntime.getSnapshotFingerprint(
-        'vscode.lsp.workspaceSymbols',
+        'vscode_lsp_workspaceSymbols',
         allowedRootsRealpaths,
       );
       const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);

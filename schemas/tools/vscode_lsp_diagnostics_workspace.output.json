@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.workspaceSymbols.output.json",
-  "title": "vscode.lsp.workspaceSymbols — output schema",
-  "description": "StructuredContent for vscode.lsp.workspaceSymbols.",
+  "$id": "schemas/tools/vscode_lsp_diagnostics_workspace.output.json",
+  "title": "vscode_lsp_diagnostics_workspace — output schema",
+  "description": "StructuredContent for vscode_lsp_diagnostics_workspace.",
   "type": "object",
   "additionalProperties": false,
   "required": ["items", "nextCursor"],
   "properties": {
     "items": {
       "type": "array",
-      "items": { "$ref": "#/$defs/workspaceSymbol" }
+      "items": { "$ref": "#/$defs/fileDiagnostics" }
     },
     "nextCursor": {
       "type": ["string", "null"]
@@ -38,25 +38,29 @@
         "end": { "$ref": "#/$defs/position" }
       }
     },
-    "location": {
+    "diagnostic": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["uri", "range"],
-      "properties": {
-        "uri": { "type": "string", "minLength": 1, "pattern": "^file:" },
-        "range": { "$ref": "#/$defs/range" }
-      }
-    },
-    "workspaceSymbol": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "name", "kind", "location"],
+      "required": ["id", "range", "message"],
       "properties": {
         "id": { "type": "string", "minLength": 1, "pattern": "^sha256:" },
-        "name": { "type": "string", "minLength": 1 },
-        "kind": { "type": "integer", "minimum": 0 },
-        "location": { "$ref": "#/$defs/location" },
-        "containerName": { "type": "string", "minLength": 1 }
+        "range": { "$ref": "#/$defs/range" },
+        "severity": { "type": "integer", "minimum": 0 },
+        "code": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "fileDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "diagnostics"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1, "pattern": "^file:" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnostic" }
+        }
       }
     }
   }

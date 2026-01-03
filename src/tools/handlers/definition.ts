@@ -1,6 +1,6 @@
 // src/tools/handlers/definition.ts
 //
-// vscode.lsp.definition (v1)
+// vscode_lsp_definition (v1)
 // - Opens (or reuses) the target document.
 // - Executes VS Code's definition provider.
 // - Normalizes Location + LocationLink into contract Location objects.
@@ -76,13 +76,13 @@ export async function handleDefinition(
 
   // Strict-local invalidation: key is scoped to the queried document version only.
   const cacheKey = stableJsonStringify({
-    tool: 'vscode.lsp.definition',
+    tool: 'vscode_lsp_definition',
     uri: gated.value.uri,
     v: doc.version,
     line: input.position.line,
     character: input.position.character,
   });
-  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.definition');
+  const cache = deps.toolRuntime.getUnpagedCache('vscode_lsp_definition');
   const cached = cache.get(cacheKey) as DefinitionOutput | undefined;
   if (cached) return { ok: true, result: cached };
 

@@ -25,12 +25,14 @@ describe('dispatcher', () => {
       toolRuntime: new ToolRuntime(),
     };
 
-    const res = await dispatchToolCall('unknown.tool', {}, deps);
-    expect(res.ok).to.equal(false);
-    if (!res.ok) {
-      expect(res.error.code).to.equal(-32602);
-      const data = res.error.data as { code?: string };
-      expect(data.code).to.equal('MCP_LSP_GATEWAY/INVALID_PARAMS');
+    for (const name of ['unknown.tool', 'vscode.lsp.hover']) {
+      const res = await dispatchToolCall(name, {}, deps);
+      expect(res.ok).to.equal(false);
+      if (!res.ok) {
+        expect(res.error.code).to.equal(-32602);
+        const data = res.error.data as { code?: string };
+        expect(data.code).to.equal('MCP_LSP_GATEWAY/INVALID_PARAMS');
+      }
     }
   });
 
@@ -47,7 +49,7 @@ describe('dispatcher', () => {
     };
 
     const res = await dispatchToolCall(
-      'vscode.lsp.hover',
+      'vscode_lsp_hover',
       { uri: 'file:///does-not-matter', position: { line: -1, character: 0 } },
       deps,
     );
@@ -95,7 +97,7 @@ describe('dispatcher', () => {
 
     try {
       const p1 = dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         {
           uri: uri.toString(),
           position: { line: 0, character: 0 },
@@ -103,7 +105,7 @@ describe('dispatcher', () => {
         deps,
       );
       const p2 = dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         {
           uri: uri.toString(),
           position: { line: 0, character: 0 },
@@ -151,7 +153,7 @@ describe('dispatcher', () => {
 
     try {
       const p1 = dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         {
           uri: uri.toString(),
           position: { line: 0, character: 0 },
@@ -159,7 +161,7 @@ describe('dispatcher', () => {
         deps,
       );
       const p2 = dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         {
           uri: uri.toString(),
           position: { line: 0, character: 0 },
@@ -200,7 +202,7 @@ describe('dispatcher', () => {
 
     try {
       const s1 = dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         {
           uri: uri.toString(),
           position: { line: 0, character: 0 },
@@ -208,7 +210,7 @@ describe('dispatcher', () => {
         slowDeps,
       );
       const s2 = dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         {
           uri: uri.toString(),
           position: { line: 0, character: 0 },
@@ -271,7 +273,7 @@ describe('dispatcher', () => {
 
     try {
       const res = await dispatchToolCall(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         { uri: uri.toString(), position: { line: 0, character: 0 } },
         deps,
       );
@@ -286,9 +288,9 @@ describe('dispatcher', () => {
       const gated = await canonicalizeAndGateFileUri(uri.toString(), deps.allowedRootsRealpaths);
       expect(gated.ok).to.equal(true);
       if (!gated.ok) return;
-      const requestKey = computeRequestKey('vscode.lsp.references', [gated.value.uri, 0, 0, false]);
+      const requestKey = computeRequestKey('vscode_lsp_references', [gated.value.uri, 0, 0, false]);
       const epochTupleString = toolRuntime.getSnapshotFingerprint(
-        'vscode.lsp.references',
+        'vscode_lsp_references',
         deps.allowedRootsRealpaths,
       );
       const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);

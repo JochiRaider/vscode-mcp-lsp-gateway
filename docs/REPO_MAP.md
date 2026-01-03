@@ -27,20 +27,20 @@
 - `eslint.config.mjs` — ESLint flat configuration for TypeScript tests and sources with Prettier.
 - `package-lock.json` — npm lockfile capturing resolved dependency versions and integrity hashes.
 - `package.json` — VS Code extension manifest: commands, settings, scripts, and dependencies.
-- `schemas/tools/vscode.lsp.definition.json` — Input JSON Schema for definition tool: file URI and 0-based position.
-- `schemas/tools/vscode.lsp.definition.output.json` — Output schema for definitions: locations array plus optional summary text.
-- `schemas/tools/vscode.lsp.diagnostics.document.json` — Input schema for document diagnostics: required file URI.
-- `schemas/tools/vscode.lsp.diagnostics.document.output.json` — Output schema for document diagnostics: uri, diagnostics list, optional summary.
-- `schemas/tools/vscode.lsp.diagnostics.workspace.json` — Input schema for workspace diagnostics paging: cursor and pageSize.
-- `schemas/tools/vscode.lsp.diagnostics.workspace.output.json` — Output schema for workspace diagnostics: items, nextCursor, optional summary.
-- `schemas/tools/vscode.lsp.documentSymbols.json` — Input schema for document symbols: required file URI.
-- `schemas/tools/vscode.lsp.documentSymbols.output.json` — Output schema for document symbols: symbols array, ranges, and ids.
-- `schemas/tools/vscode.lsp.hover.json` — Input schema for hover requests: file URI and position.
-- `schemas/tools/vscode.lsp.hover.output.json` — Output schema for hover: contents fragments, optional range, optional summary.
-- `schemas/tools/vscode.lsp.references.json` — Input schema for references: uri, position, cursor, and pageSize.
-- `schemas/tools/vscode.lsp.references.output.json` — Output schema for references: items list, nextCursor, optional summary.
-- `schemas/tools/vscode.lsp.workspaceSymbols.json` — Input schema for workspace symbols: query, cursor, and pageSize.
-- `schemas/tools/vscode.lsp.workspaceSymbols.output.json` — Output schema for workspace symbols: items list, nextCursor, optional summary.
+- `schemas/tools/vscode_lsp_definition.json` — Input JSON Schema for definition tool: file URI and 0-based position.
+- `schemas/tools/vscode_lsp_definition.output.json` — Output schema for definitions: locations array plus optional summary text.
+- `schemas/tools/vscode_lsp_diagnostics_document.json` — Input schema for document diagnostics: required file URI.
+- `schemas/tools/vscode_lsp_diagnostics_document.output.json` — Output schema for document diagnostics: uri, diagnostics list, optional summary.
+- `schemas/tools/vscode_lsp_diagnostics_workspace.json` — Input schema for workspace diagnostics paging: cursor and pageSize.
+- `schemas/tools/vscode_lsp_diagnostics_workspace.output.json` — Output schema for workspace diagnostics: items, nextCursor, optional summary.
+- `schemas/tools/vscode_lsp_documentSymbols.json` — Input schema for document symbols: required file URI.
+- `schemas/tools/vscode_lsp_documentSymbols.output.json` — Output schema for document symbols: symbols array, ranges, and ids.
+- `schemas/tools/vscode_lsp_hover.json` — Input schema for hover requests: file URI and position.
+- `schemas/tools/vscode_lsp_hover.output.json` — Output schema for hover: contents fragments, optional range, optional summary.
+- `schemas/tools/vscode_lsp_references.json` — Input schema for references: uri, position, cursor, and pageSize.
+- `schemas/tools/vscode_lsp_references.output.json` — Output schema for references: items list, nextCursor, optional summary.
+- `schemas/tools/vscode_lsp_workspaceSymbols.json` — Input schema for workspace symbols: query, cursor, and pageSize.
+- `schemas/tools/vscode_lsp_workspaceSymbols.output.json` — Output schema for workspace symbols: items list, nextCursor, optional summary.
 - `scripts/clean-src-artifacts.mjs` — Removes compiled .js artifacts from src to keep tree clean.
 - `scripts/vscode-test-gate.d.mts` — Type declarations for the VS Code test gate helper.
 - `scripts/vscode-test-gate.mjs` — Determines when integration tests should be skipped in CI.

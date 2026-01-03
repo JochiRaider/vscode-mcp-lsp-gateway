@@ -20,6 +20,7 @@ type GatewaySettings = Readonly<{
   allowedOrigins: readonly string[];
   additionalAllowedRoots: readonly string[];
   enableSessions: boolean;
+  allowLegacyInitializeProtocolVersion: boolean;
   maxItemsPerPage: number;
   maxResponseBytes: number;
   requestTimeoutMs: number;
@@ -48,6 +49,10 @@ function readAndValidateSettings(): { settings?: GatewaySettings; problems: stri
   ).map(String);
 
   const enableSessions = !!cfg.get<boolean>('enableSessions', true);
+  const allowLegacyInitializeProtocolVersion = !!cfg.get<boolean>(
+    'allowLegacyInitializeProtocolVersion',
+    false,
+  );
   const maxItemsPerPage = Number(cfg.get<number>('maxItemsPerPage', 200));
   const maxResponseBytes = Number(cfg.get<number>('maxResponseBytes', 524_288));
   const requestTimeoutMs = Number(cfg.get<number>('requestTimeoutMs', 2_000));
@@ -97,6 +102,7 @@ function readAndValidateSettings(): { settings?: GatewaySettings; problems: stri
       allowedOrigins,
       additionalAllowedRoots,
       enableSessions,
+      allowLegacyInitializeProtocolVersion,
       maxItemsPerPage,
       maxResponseBytes,
       requestTimeoutMs,
@@ -284,6 +290,7 @@ class ExtensionRuntime {
       port: settings.port,
       endpointPath: settings.endpointPath,
       enableSessions: settings.enableSessions,
+      allowLegacyInitializeProtocolVersion: settings.allowLegacyInitializeProtocolVersion,
       maxItemsPerPage: settings.maxItemsPerPage,
       maxResponseBytes: settings.maxResponseBytes,
       requestTimeoutMs: settings.requestTimeoutMs,
@@ -341,6 +348,7 @@ class ExtensionRuntime {
       protocolVersion: '2025-11-25',
       serverInfo,
       enableSessions: settings.enableSessions,
+      allowLegacyInitializeProtocolVersion: settings.allowLegacyInitializeProtocolVersion,
       schemaRegistry,
       toolRuntime,
       maxItemsPerPage: settings.maxItemsPerPage,

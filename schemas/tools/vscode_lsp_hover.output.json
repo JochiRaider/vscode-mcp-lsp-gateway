@@ -1,16 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.definition.output.json",
-  "title": "vscode.lsp.definition — output schema",
-  "description": "StructuredContent for vscode.lsp.definition.",
+  "$id": "schemas/tools/vscode_lsp_hover.output.json",
+  "title": "vscode_lsp_hover — output schema",
+  "description": "StructuredContent for vscode_lsp_hover.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["locations"],
+  "required": ["contents"],
   "properties": {
-    "locations": {
+    "contents": {
       "type": "array",
-      "items": { "$ref": "#/$defs/location" }
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "value"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["markdown", "plaintext"] },
+          "value": { "type": "string" }
+        }
+      }
     },
+    "range": { "$ref": "#/$defs/range" },
     "summary": {
       "type": "string",
       "minLength": 1
@@ -33,15 +42,6 @@
       "properties": {
         "start": { "$ref": "#/$defs/position" },
         "end": { "$ref": "#/$defs/position" }
-      }
-    },
-    "location": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["uri", "range"],
-      "properties": {
-        "uri": { "type": "string", "minLength": 1, "pattern": "^file:" },
-        "range": { "$ref": "#/$defs/range" }
       }
     }
   }

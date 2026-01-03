@@ -1,6 +1,6 @@
 // src/tools/handlers/workspaceSymbols.ts
 //
-// vscode.lsp.workspaceSymbols (v1)
+// vscode_lsp_workspaceSymbols (v1)
 // - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - Normalize query, execute VS Code workspace symbol provider
 // - Canonicalize output URIs and filter to allowed roots
@@ -22,7 +22,7 @@ import {
   validateCursor,
 } from '../paging/cursor.js';
 
-const TOOL_NAME = 'vscode.lsp.workspaceSymbols' as const;
+const TOOL_NAME = 'vscode_lsp_workspaceSymbols' as const;
 const MAX_WORKSPACE_SYMBOLS_ITEMS_TOTAL = 20000;
 const MAX_PAGE_SIZE = 200;
 const DEFAULT_PAGE_SIZE = 100;

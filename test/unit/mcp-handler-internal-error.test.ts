@@ -71,7 +71,7 @@ describe('mcp handler internal errors', () => {
         id: 2,
         method: 'tools/call',
         params: {
-          name: 'vscode.lsp.hover',
+          name: 'vscode_lsp_hover',
           arguments: { uri: 'file:///tmp/test.ts', position: { line: 0, character: 0 } },
         },
       },

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.hover.json",
-  "title": "vscode.lsp.hover — input schema",
+  "$id": "schemas/tools/vscode_lsp_hover.json",
+  "title": "vscode_lsp_hover — input schema",
   "description": "Return hover information at a given position in a file.",
   "type": "object",
   "additionalProperties": false,

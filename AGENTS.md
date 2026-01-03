@@ -19,13 +19,13 @@ The project is intentionally **contract-first**: behavior is defined by `docs/PR
 - **Read-only only**: no edits, no rename, no apply-edits, no write-capable code actions, no arbitrary command execution.
 - **Protocol**: MCP **Streamable HTTP** for **Protocol Revision `2025-11-25` only** (no backward compatibility).
 - **Tool catalog is fixed** (v1):
-  - `vscode.lsp.definition`
-  - `vscode.lsp.references` (paged)
-  - `vscode.lsp.hover`
-  - `vscode.lsp.documentSymbols`
-  - `vscode.lsp.workspaceSymbols` (paged)
-  - `vscode.lsp.diagnostics.document`
-  - `vscode.lsp.diagnostics.workspace` (paged)
+  - `vscode_lsp_definition`
+  - `vscode_lsp_references` (paged)
+  - `vscode_lsp_hover`
+  - `vscode_lsp_documentSymbols`
+  - `vscode_lsp_workspaceSymbols` (paged)
+  - `vscode_lsp_diagnostics_document`
+  - `vscode_lsp_diagnostics_workspace` (paged)
 
 ### Security (fail-closed)
 
@@ -137,6 +137,7 @@ Primary settings (machine-scoped):
 - `mcpLspGateway.allowedOrigins` (Origin allowlist; empty by default)
 - `mcpLspGateway.additionalAllowedRoots` (absolute paths; empty by default)
 - `mcpLspGateway.enableSessions` (default `true`; sessions are not auth)
+- `mcpLspGateway.allowLegacyInitializeProtocolVersion` (default `false`)
 - `mcpLspGateway.maxItemsPerPage` (default/max `200`)
 - `mcpLspGateway.maxResponseBytes` (default/max `524288`)
 - `mcpLspGateway.requestTimeoutMs` (default/max `2000`)

@@ -130,6 +130,12 @@
           "scope": "machine",
           "description": "If true, mint MCP-Session-Id on initialize response and require it for subsequent requests. Sessions are not authentication."
         },
+        "mcpLspGateway.allowLegacyInitializeProtocolVersion": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "description": "Opt-in interop: allow legacy initialize protocolVersion values (2025-06-18, 2025-11-25). Response still negotiates 2025-11-25."
+        },
         "mcpLspGateway.maxItemsPerPage": {
           "type": "integer",
           "default": 200,

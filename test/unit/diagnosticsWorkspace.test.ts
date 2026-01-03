@@ -160,7 +160,7 @@ describe('diagnostics workspace paging', () => {
       },
     ];
 
-    const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
+    const requestKey = computeRequestKey('vscode_lsp_diagnostics_workspace', []);
     const snapshotKey = computeSnapshotKey(requestKey, 'fp');
     const paged = paginate(groups, 1, null, requestKey, snapshotKey);
     expect(paged.ok).to.equal(true);
@@ -172,8 +172,8 @@ describe('diagnostics workspace paging', () => {
   });
 
   it('rejects cursor mismatches deterministically', () => {
-    const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
-    const otherKey = computeRequestKey('vscode.lsp.diagnostics.workspace', ['x']);
+    const requestKey = computeRequestKey('vscode_lsp_diagnostics_workspace', []);
+    const otherKey = computeRequestKey('vscode_lsp_diagnostics_workspace', ['x']);
     const snapshotKey = computeSnapshotKey(requestKey, 'fp');
     const cursor = encodeCursor({ v: 2, o: 0, k: otherKey, s: snapshotKey });
 

@@ -62,9 +62,9 @@ describe('diagnostics workspace memoization', () => {
       const returnedUris = [firstItem.uri, secondItem.uri].sort();
       expect(returnedUris).to.deep.equal([uriA.toString(), uriB.toString()].sort());
 
-      const requestKey = computeRequestKey('vscode.lsp.diagnostics.workspace', []);
+      const requestKey = computeRequestKey('vscode_lsp_diagnostics_workspace', []);
       const epochTupleString = toolRuntime.getSnapshotFingerprint(
-        'vscode.lsp.diagnostics.workspace',
+        'vscode_lsp_diagnostics_workspace',
         allowedRootsRealpaths,
       );
       const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);

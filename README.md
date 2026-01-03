@@ -103,13 +103,13 @@ For transport/lifecycle requirements: see `docs/PROTOCOL.md`.
 
 These tools are exposed via MCP `tools/list` and invoked with `tools/call`:
 
-- `vscode.lsp.definition`
-- `vscode.lsp.references` (paged)
-- `vscode.lsp.hover`
-- `vscode.lsp.documentSymbols`
-- `vscode.lsp.workspaceSymbols` (paged)
-- `vscode.lsp.diagnostics.document`
-- `vscode.lsp.diagnostics.workspace` (paged)
+- `vscode_lsp_definition`
+- `vscode_lsp_references` (paged)
+- `vscode_lsp_hover`
+- `vscode_lsp_documentSymbols`
+- `vscode_lsp_workspaceSymbols` (paged)
+- `vscode_lsp_diagnostics_document`
+- `vscode_lsp_diagnostics_workspace` (paged)
 
 ## Configuration
 

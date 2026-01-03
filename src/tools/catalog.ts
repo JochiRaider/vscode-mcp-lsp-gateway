@@ -7,13 +7,13 @@
 // - inputSchema/outputSchema are provided as objects at runtime (e.g., from schemaRegistry)
 
 export const V1_TOOL_NAMES = [
-  'vscode.lsp.definition',
-  'vscode.lsp.references',
-  'vscode.lsp.hover',
-  'vscode.lsp.documentSymbols',
-  'vscode.lsp.workspaceSymbols',
-  'vscode.lsp.diagnostics.document',
-  'vscode.lsp.diagnostics.workspace',
+  'vscode_lsp_definition',
+  'vscode_lsp_references',
+  'vscode_lsp_hover',
+  'vscode_lsp_documentSymbols',
+  'vscode_lsp_workspaceSymbols',
+  'vscode_lsp_diagnostics_document',
+  'vscode_lsp_diagnostics_workspace',
 ] as const;
 
 export type V1ToolName = (typeof V1_TOOL_NAMES)[number];
@@ -29,13 +29,13 @@ export type ToolCatalogEntry = Readonly<{
 }>;
 
 const DESCRIPTIONS: Readonly<Record<V1ToolName, string>> = {
-  'vscode.lsp.definition': 'Find definition location(s) for a symbol at a position.',
-  'vscode.lsp.references': 'Find reference locations for a symbol at a position (paged).',
-  'vscode.lsp.hover': 'Return hover information at a position.',
-  'vscode.lsp.documentSymbols': 'Return flattened document symbols for a file.',
-  'vscode.lsp.workspaceSymbols': 'Search workspace symbols by query string (paged).',
-  'vscode.lsp.diagnostics.document': 'Return diagnostics for a single document.',
-  'vscode.lsp.diagnostics.workspace': 'Return diagnostics across the workspace (paged by file).',
+  vscode_lsp_definition: 'Find definition location(s) for a symbol at a position.',
+  vscode_lsp_references: 'Find reference locations for a symbol at a position (paged).',
+  vscode_lsp_hover: 'Return hover information at a position.',
+  vscode_lsp_documentSymbols: 'Return flattened document symbols for a file.',
+  vscode_lsp_workspaceSymbols: 'Search workspace symbols by query string (paged).',
+  vscode_lsp_diagnostics_document: 'Return diagnostics for a single document.',
+  vscode_lsp_diagnostics_workspace: 'Return diagnostics across the workspace (paged by file).',
 } as const;
 
 export function isV1ToolName(name: string): name is V1ToolName {

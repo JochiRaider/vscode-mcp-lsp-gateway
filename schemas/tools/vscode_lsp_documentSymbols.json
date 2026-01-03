@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.documentSymbols.json",
-  "title": "vscode.lsp.documentSymbols — input schema",
+  "$id": "schemas/tools/vscode_lsp_documentSymbols.json",
+  "title": "vscode_lsp_documentSymbols — input schema",
   "description": "Return flattened document symbols for a file.",
   "type": "object",
   "additionalProperties": false,

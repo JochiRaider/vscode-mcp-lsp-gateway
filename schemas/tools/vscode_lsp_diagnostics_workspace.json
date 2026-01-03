@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.diagnostics.workspace.json",
-  "title": "vscode.lsp.diagnostics.workspace — input schema",
+  "$id": "schemas/tools/vscode_lsp_diagnostics_workspace.json",
+  "title": "vscode_lsp_diagnostics_workspace — input schema",
   "description": "Return diagnostics across the workspace (paged by file).",
   "type": "object",
   "additionalProperties": false,

@@ -57,13 +57,13 @@ The server ignores client requests that exceed caps and returns bounded results 
 
 The server exposes tools via MCP `tools/list`. The returned set MUST contain exactly the v1 tools:
 
-- `vscode.lsp.definition`
-- `vscode.lsp.references`
-- `vscode.lsp.hover`
-- `vscode.lsp.documentSymbols`
-- `vscode.lsp.workspaceSymbols`
-- `vscode.lsp.diagnostics.document`
-- `vscode.lsp.diagnostics.workspace`
+- `vscode_lsp_definition`
+- `vscode_lsp_references`
+- `vscode_lsp_hover`
+- `vscode_lsp_documentSymbols`
+- `vscode_lsp_workspaceSymbols`
+- `vscode_lsp_diagnostics_document`
+- `vscode_lsp_diagnostics_workspace`
 
 No additional tools may be added or renamed without updating:
 
@@ -246,9 +246,9 @@ Epoch counters are monotonic integers maintained by the server to capture worksp
 
 Epoch tuples for paged tools MUST incorporate the relevant epochs:
 
-- `vscode.lsp.references`: `textEpoch`, `fsEpoch`, `rootsEpoch`
-- `vscode.lsp.workspaceSymbols`: `textEpoch`, `fsEpoch`, `rootsEpoch`
-- `vscode.lsp.diagnostics.workspace`: `diagnosticsEpoch`, `fsEpoch`, `rootsEpoch`
+- `vscode_lsp_references`: `textEpoch`, `fsEpoch`, `rootsEpoch`
+- `vscode_lsp_workspaceSymbols`: `textEpoch`, `fsEpoch`, `rootsEpoch`
+- `vscode_lsp_diagnostics_workspace`: `diagnosticsEpoch`, `fsEpoch`, `rootsEpoch`
 
 The epoch tuple ordering used for snapshot keys is:
 
@@ -446,7 +446,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 - The “Output” blocks in §7 define the **tool payload object** that MUST appear in `result.structuredContent` for a successful `tools/call` (see §3.0).
 - The server MUST NOT duplicate that JSON object into `result.content`.
 
-### 7.1 `vscode.lsp.definition`
+### 7.1 `vscode_lsp_definition`
 
 **Purpose**: Find definition location(s) for symbol at a position.
 
@@ -484,7 +484,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 ---
 
-### 7.2 `vscode.lsp.references` (paged)
+### 7.2 `vscode_lsp_references` (paged)
 
 **Purpose**: Find reference locations for symbol at a position.
 
@@ -528,11 +528,11 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor request key)**
 
-- `k = sha256hex(stableJsonStringify(["v1", "vscode.lsp.references", canonical_uri, line, character, includeDeclaration]))`
+- `k = sha256hex(stableJsonStringify(["v1", "vscode_lsp_references", canonical_uri, line, character, includeDeclaration]))`
 
 ---
 
-### 7.3 `vscode.lsp.hover`
+### 7.3 `vscode_lsp_hover`
 
 **Purpose**: Get hover information at a position.
 
@@ -574,7 +574,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 ---
 
-### 7.4 `vscode.lsp.documentSymbols`
+### 7.4 `vscode_lsp_documentSymbols`
 
 **Purpose**: Return document symbols for a file.
 
@@ -629,7 +629,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 ---
 
-### 7.5 `vscode.lsp.workspaceSymbols` (paged)
+### 7.5 `vscode_lsp_workspaceSymbols` (paged)
 
 **Purpose**: Search workspace symbols by query string.
 
@@ -684,7 +684,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor request key)**
 
-- `k = sha256hex(stableJsonStringify(["v1", "vscode.lsp.workspaceSymbols", normalized_query]))`
+- `k = sha256hex(stableJsonStringify(["v1", "vscode_lsp_workspaceSymbols", normalized_query]))`
 
 **Stable id (cursor snapshot key)**
 
@@ -693,7 +693,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 ---
 
-### 7.6 `vscode.lsp.diagnostics.document`
+### 7.6 `vscode_lsp_diagnostics_document`
 
 **Purpose**: Return diagnostics for a single document.
 
@@ -746,7 +746,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 ---
 
-### 7.7 `vscode.lsp.diagnostics.workspace` (paged)
+### 7.7 `vscode_lsp_diagnostics_workspace` (paged)
 
 **Purpose**: Return diagnostics across the workspace.
 
@@ -818,7 +818,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 **Stable id (cursor request key)**
 
-- `k = sha256hex(stableJsonStringify(["v1", "vscode.lsp.diagnostics.workspace"]))`
+- `k = sha256hex(stableJsonStringify(["v1", "vscode_lsp_diagnostics_workspace"]))`
 
 ---
 

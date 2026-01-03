@@ -85,14 +85,14 @@ type HandlerResult =
 type RoutedHandler = (args: unknown, deps: ToolsDispatcherDeps) => Promise<HandlerResult>;
 
 const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
-  'vscode.lsp.definition': async (args, deps) => {
+  vscode_lsp_definition: async (args, deps) => {
     return await handleDefinition(args as DefinitionInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       toolRuntime: deps.toolRuntime,
     });
   },
 
-  'vscode.lsp.references': async (args, deps) => {
+  vscode_lsp_references: async (args, deps) => {
     return await handleReferences(args as ReferencesInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
@@ -100,21 +100,21 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     });
   },
 
-  'vscode.lsp.hover': async (args, deps) => {
+  vscode_lsp_hover: async (args, deps) => {
     return await handleHover(args as HoverInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       toolRuntime: deps.toolRuntime,
     });
   },
 
-  'vscode.lsp.documentSymbols': async (args, deps) => {
+  vscode_lsp_documentSymbols: async (args, deps) => {
     return await handleDocumentSymbols(args as DocumentSymbolsInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       toolRuntime: deps.toolRuntime,
     });
   },
 
-  'vscode.lsp.workspaceSymbols': async (args, deps) => {
+  vscode_lsp_workspaceSymbols: async (args, deps) => {
     return await handleWorkspaceSymbols(args as WorkspaceSymbolsInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
@@ -122,14 +122,14 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
     });
   },
 
-  'vscode.lsp.diagnostics.document': async (args, deps) => {
+  vscode_lsp_diagnostics_document: async (args, deps) => {
     return await handleDiagnosticsDocument(args as DiagnosticsDocumentInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       toolRuntime: deps.toolRuntime,
     });
   },
 
-  'vscode.lsp.diagnostics.workspace': async (args, deps) => {
+  vscode_lsp_diagnostics_workspace: async (args, deps) => {
     return await handleDiagnosticsWorkspace(args as DiagnosticsWorkspaceInput, {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,

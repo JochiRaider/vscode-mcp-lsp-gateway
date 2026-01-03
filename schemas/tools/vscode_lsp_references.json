@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.references.json",
-  "title": "vscode.lsp.references — input schema",
+  "$id": "schemas/tools/vscode_lsp_references.json",
+  "title": "vscode_lsp_references — input schema",
   "description": "Find reference locations for the symbol at a given position in a file (paged).",
   "type": "object",
   "additionalProperties": false,

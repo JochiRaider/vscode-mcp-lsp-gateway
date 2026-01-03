@@ -58,7 +58,7 @@ Non-negotiables to enforce in review (v1):
 - Determinism: canonicalize; stable sort + dedupe; stable cursor paging
 - Hard bounds: request size, response size, max items per page/total sets, timeouts; deterministic errors (no nondeterministic partial results)
 - Strict schemas: tool input/output schemas must be present and reject unknown fields (`additionalProperties: false`)
-- Fixed tool catalog (v1): `vscode.lsp.definition`, `vscode.lsp.references` (paged), `vscode.lsp.hover`, `vscode.lsp.documentSymbols`, `vscode.lsp.workspaceSymbols` (paged), `vscode.lsp.diagnostics.document`, `vscode.lsp.diagnostics.workspace` (paged)
+- Fixed tool catalog (v1): `vscode_lsp_definition`, `vscode_lsp_references` (paged), `vscode_lsp_hover`, `vscode_lsp_documentSymbols`, `vscode_lsp_workspaceSymbols` (paged), `vscode_lsp_diagnostics_document`, `vscode_lsp_diagnostics_workspace` (paged)
 - Logging hygiene: never log tokens/session IDs/raw bodies/out-of-root paths; redact and bound logs
 
 ---

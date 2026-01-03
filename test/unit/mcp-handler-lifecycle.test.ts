@@ -94,4 +94,81 @@ describe('mcp handler lifecycle', () => {
     expect(toolsListError?.message).to.equal('Not initialized');
     expect(toolsListError?.data?.detail).to.equal('notifications/initialized not received');
   });
+
+  it('accepts legacy initialize protocolVersion when interop flag is enabled', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const context = createTestContext(repoRoot);
+    const schemaRegistry: SchemaRegistry = await SchemaRegistry.create(context);
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+
+    const handler = createMcpPostHandler({
+      protocolVersion: '2025-11-25',
+      serverInfo: { name: 'test', version: '0.0.0' },
+      enableSessions: false,
+      allowLegacyInitializeProtocolVersion: true,
+      schemaRegistry,
+      toolRuntime: new ToolRuntime(),
+      maxItemsPerPage: 200,
+      maxResponseBytes: 1024 * 1024,
+      requestTimeoutMs: 1000,
+      allowedRootsRealpaths,
+    });
+
+    const init = await invokeHandler(
+      handler,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-06-18' },
+      },
+      {},
+    );
+    expect(init.status).to.equal(200);
+    const parsedInit = JSON.parse(init.bodyText ?? '{}') as Record<string, unknown>;
+    const result = parsedInit.result as { protocolVersion?: string } | undefined;
+    expect(result?.protocolVersion).to.equal('2025-11-25');
+
+    const initialized = await invokeHandler(
+      handler,
+      { jsonrpc: '2.0', method: 'notifications/initialized', params: {} },
+      { 'mcp-protocol-version': '2025-11-25' },
+    );
+    expect(initialized.status).to.equal(202);
+  });
+
+  it('rejects legacy initialize protocolVersion by default', async () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const context = createTestContext(repoRoot);
+    const schemaRegistry: SchemaRegistry = await SchemaRegistry.create(context);
+    const allowedRootsRealpaths = [fs.realpathSync(repoRoot)];
+
+    const handler = createMcpPostHandler({
+      protocolVersion: '2025-11-25',
+      serverInfo: { name: 'test', version: '0.0.0' },
+      enableSessions: false,
+      schemaRegistry,
+      toolRuntime: new ToolRuntime(),
+      maxItemsPerPage: 200,
+      maxResponseBytes: 1024 * 1024,
+      requestTimeoutMs: 1000,
+      allowedRootsRealpaths,
+    });
+
+    const init = await invokeHandler(
+      handler,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-06-18' },
+      },
+      {},
+    );
+    expect(init.status).to.equal(200);
+    const parsedInit = JSON.parse(init.bodyText ?? '{}') as Record<string, unknown>;
+    const error = parsedInit.error as { code?: number; message?: string } | undefined;
+    expect(error?.code).to.equal(-32602);
+    expect(error?.message).to.equal('Invalid params');
+  });
 });

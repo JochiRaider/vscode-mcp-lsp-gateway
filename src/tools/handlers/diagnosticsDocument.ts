@@ -1,6 +1,6 @@
 // src/tools/handlers/diagnosticsDocument.ts
 //
-// vscode.lsp.diagnostics.document (v1)
+// vscode_lsp_diagnostics_document (v1)
 // - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Normalizes diagnostics to contract shape with stable ids, sort, dedupe
@@ -69,12 +69,12 @@ export async function handleDiagnosticsDocument(
   const doc = findOpenTextDocument(docUri);
   const cacheKey = doc
     ? stableJsonStringify({
-        tool: 'vscode.lsp.diagnostics.document',
+        tool: 'vscode_lsp_diagnostics_document',
         uri: gated.value.uri,
         v: doc.version,
       })
     : undefined;
-  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.diagnostics.document');
+  const cache = deps.toolRuntime.getUnpagedCache('vscode_lsp_diagnostics_document');
   const cached = cacheKey
     ? (cache.get(cacheKey) as DiagnosticsDocumentOutput | undefined)
     : undefined;

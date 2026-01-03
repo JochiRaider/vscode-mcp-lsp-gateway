@@ -52,6 +52,13 @@ export type CreateMcpPostHandlerOptions = Readonly<{
    * Default: false (fail closed).
    */
   allowMissingProtocolVersionOnInitializedNotification?: boolean;
+  /**
+   * Interop escape hatch:
+   * Allow legacy initialize.params.protocolVersion values on initialize only.
+   *
+   * Default: false (fail closed).
+   */
+  allowLegacyInitializeProtocolVersion?: boolean;
 }>;
 
 type InitializeResult = Readonly<{
@@ -68,6 +75,8 @@ const ERR_CURSOR_INVALID = 'MCP_LSP_GATEWAY/CURSOR_INVALID' as const;
 const ERR_CAP_EXCEEDED = 'MCP_LSP_GATEWAY/CAP_EXCEEDED' as const;
 const ERR_INVALID_PARAMS = 'MCP_LSP_GATEWAY/INVALID_PARAMS' as const;
 const ERR_INTERNAL = 'MCP_LSP_GATEWAY/INTERNAL' as const;
+
+const LEGACY_INITIALIZE_PROTOCOL_VERSIONS = new Set(['2025-06-18', '2025-11-25']);
 
 export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPostHandler {
   // Global init state (used when sessions are disabled).
@@ -144,7 +153,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
       // Validate required param: params.protocolVersion must match.
       const pv = getProtocolVersionParam(req.params);
-      if (pv !== opts.protocolVersion) {
+      if (!isAcceptedInitializeProtocolVersion(pv, opts)) {
         return jsonRpcErrorResponse(req.id, {
           code: -32602,
           message: 'Invalid params',
@@ -336,7 +345,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
         if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
         const toolResult =
-          toolName === 'vscode.lsp.hover'
+          toolName === 'vscode_lsp_hover'
             ? truncateHoverToolCallResult(dispatched.result, opts.maxResponseBytes, (candidate) =>
                 jsonByteLength({ jsonrpc: '2.0', id: req.id, result: candidate }),
               ).result
@@ -424,6 +433,18 @@ function getProtocolVersionParam(params: unknown): string | undefined {
   const rec = params as Record<string, unknown>;
   const pv = rec.protocolVersion;
   return typeof pv === 'string' ? pv : undefined;
+}
+
+function isAcceptedInitializeProtocolVersion(
+  pv: string | undefined,
+  opts: CreateMcpPostHandlerOptions,
+): boolean {
+  if (!pv) return false;
+  if (pv === opts.protocolVersion) return true;
+  return (
+    Boolean(opts.allowLegacyInitializeProtocolVersion) &&
+    LEGACY_INITIALIZE_PROTOCOL_VERSIONS.has(pv)
+  );
 }
 
 type OptionalCursorParse = Readonly<{ ok: true; cursor: string | null }> | Readonly<{ ok: false }>;

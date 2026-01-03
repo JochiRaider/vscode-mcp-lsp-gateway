@@ -22,7 +22,7 @@ import { ToolRuntime } from '../../src/tools/runtime/toolRuntime.js';
 
 describe('cursor helpers', () => {
   it('encodes/decodes a v2 cursor payload', () => {
-    const key = computeRequestKey('vscode.lsp.workspaceSymbols', ['query']);
+    const key = computeRequestKey('vscode_lsp_workspaceSymbols', ['query']);
     const snapshotKey = computeSnapshotKey(key, 'fp');
     const encoded = encodeCursor({ v: 2, o: 5, k: key, s: snapshotKey });
     const decoded = decodeCursor(encoded);
@@ -30,12 +30,12 @@ describe('cursor helpers', () => {
   });
 
   it('derives request keys from structured inputs without delimiter collisions', () => {
-    const key1 = computeRequestKey('vscode.lsp.workspaceSymbols', ['a|b', 'c']);
-    const key2 = computeRequestKey('vscode.lsp.workspaceSymbols', ['a', 'b|c']);
+    const key1 = computeRequestKey('vscode_lsp_workspaceSymbols', ['a|b', 'c']);
+    const key2 = computeRequestKey('vscode_lsp_workspaceSymbols', ['a', 'b|c']);
     expect(key1).to.not.equal(key2);
 
-    const key3 = computeRequestKey('vscode.lsp.workspaceSymbols', ['1', 2]);
-    const key4 = computeRequestKey('vscode.lsp.workspaceSymbols', [1, '2']);
+    const key3 = computeRequestKey('vscode_lsp_workspaceSymbols', ['1', 2]);
+    const key4 = computeRequestKey('vscode_lsp_workspaceSymbols', [1, '2']);
     expect(key3).to.not.equal(key4);
   });
 
@@ -50,7 +50,7 @@ describe('cursor helpers', () => {
   });
 
   it('rejects invalid cursor payloads deterministically', () => {
-    const key = computeRequestKey('vscode.lsp.workspaceSymbols', ['query']);
+    const key = computeRequestKey('vscode_lsp_workspaceSymbols', ['query']);
     const snapshotKey = computeSnapshotKey(key, 'fp');
     const encoded = encodeCursor({ v: 2, o: 0, k: key, s: snapshotKey });
 
@@ -104,7 +104,7 @@ describe('cursor helpers', () => {
   });
 
   it('rejects snapshot mismatches deterministically', () => {
-    const key = computeRequestKey('vscode.lsp.workspaceSymbols', ['query']);
+    const key = computeRequestKey('vscode_lsp_workspaceSymbols', ['query']);
     const snapshotKey = computeSnapshotKey(key, 'fp');
     const staleSnapshotKey = computeSnapshotKey(key, 'fp-next');
     const encoded = encodeCursor({ v: 2, o: 0, k: key, s: staleSnapshotKey });
@@ -119,7 +119,7 @@ describe('cursor helpers', () => {
   });
 
   it('paginates deterministically with stable cursors', () => {
-    const key = computeRequestKey('vscode.lsp.workspaceSymbols', ['query']);
+    const key = computeRequestKey('vscode_lsp_workspaceSymbols', ['query']);
     const snapshotKey = computeSnapshotKey(key, 'fp');
     const full = [1, 2, 3, 4, 5];
 
@@ -155,9 +155,9 @@ describe('paged tool cursor validation', () => {
     if (!gated.ok) return;
 
     const toolRuntime = new ToolRuntime();
-    const requestKey = computeRequestKey('vscode.lsp.references', [gated.value.uri, 1, 2, false]);
+    const requestKey = computeRequestKey('vscode_lsp_references', [gated.value.uri, 1, 2, false]);
     const epochTupleString = toolRuntime.getSnapshotFingerprint(
-      'vscode.lsp.references',
+      'vscode_lsp_references',
       allowedRootsRealpaths,
     );
     const snapshotKey = computeSnapshotKey(requestKey, epochTupleString);
@@ -195,12 +195,12 @@ describe('paged tool cursor validation', () => {
   });
 
   it('rejects cursor mismatches for workspace symbols', () => {
-    const k1 = computeRequestKey('vscode.lsp.workspaceSymbols', [
+    const k1 = computeRequestKey('vscode_lsp_workspaceSymbols', [
       normalizeWorkspaceSymbolsQuery('  foo  '),
     ]);
     const snapshotKey = computeSnapshotKey(k1, 'fp');
     const cursor = encodeCursor({ v: 2, o: 0, k: k1, s: snapshotKey });
-    const k2 = computeRequestKey('vscode.lsp.workspaceSymbols', ['bar']);
+    const k2 = computeRequestKey('vscode_lsp_workspaceSymbols', ['bar']);
     const snapshotKey2 = computeSnapshotKey(k2, 'fp');
     const res = validateCursor(cursor, k2, snapshotKey2);
     expect(res.ok).to.equal(false);

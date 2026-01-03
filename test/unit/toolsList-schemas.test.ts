@@ -20,6 +20,11 @@ describe('tools/list schemas', () => {
     const schemaRegistry = await SchemaRegistry.create(context);
 
     const res = dispatchToolsList(schemaRegistry);
+    const names = res.tools.map((tool) => tool.name);
+    expect(names).to.deep.equal([...V1_TOOL_NAMES]);
+    for (const name of names) {
+      expect(name).to.match(/^[a-zA-Z0-9_-]+$/);
+    }
     for (const tool of res.tools) {
       expect(tool.inputSchema).to.be.an('object');
       expect(tool.outputSchema).to.be.an('object');

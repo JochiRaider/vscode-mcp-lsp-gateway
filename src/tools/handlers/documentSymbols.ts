@@ -1,6 +1,6 @@
 // src/tools/handlers/documentSymbols.ts
 //
-// vscode.lsp.documentSymbols (v1)
+// vscode_lsp_documentSymbols (v1)
 // - Input is already Ajv-validated by the dispatcher (deterministic -32602 on failure)
 // - URI gating (schema includes `uri`)
 // - Executes VS Code's document symbol provider and normalizes to flattened output
@@ -68,11 +68,11 @@ export async function handleDocumentSymbols(
   if (!doc) return { ok: false, error: toolError(E_INTERNAL, 'MCP_LSP_GATEWAY/NOT_FOUND') };
 
   const cacheKey = stableJsonStringify({
-    tool: 'vscode.lsp.documentSymbols',
+    tool: 'vscode_lsp_documentSymbols',
     uri: gated.value.uri,
     v: doc.version,
   });
-  const cache = deps.toolRuntime.getUnpagedCache('vscode.lsp.documentSymbols');
+  const cache = deps.toolRuntime.getUnpagedCache('vscode_lsp_documentSymbols');
   const cached = cache.get(cacheKey) as
     | { symbols: readonly ContractDocumentSymbol[]; summary?: string }
     | undefined;

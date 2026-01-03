@@ -193,7 +193,7 @@ describe('mcp handler response size', () => {
           id: 2,
           method: 'tools/call',
           params: {
-            name: 'vscode.lsp.diagnostics.document',
+            name: 'vscode_lsp_diagnostics_document',
             arguments: { uri: uri.toString() },
           },
         },

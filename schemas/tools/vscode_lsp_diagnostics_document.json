@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.diagnostics.document.json",
-  "title": "vscode.lsp.diagnostics.document — input schema",
+  "$id": "schemas/tools/vscode_lsp_diagnostics_document.json",
+  "title": "vscode_lsp_diagnostics_document — input schema",
   "description": "Return diagnostics for a single document.",
   "type": "object",
   "additionalProperties": false,

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schemas/tools/vscode.lsp.workspaceSymbols.json",
-  "title": "vscode.lsp.workspaceSymbols — input schema",
+  "$id": "schemas/tools/vscode_lsp_workspaceSymbols.json",
+  "title": "vscode_lsp_workspaceSymbols — input schema",
   "description": "Search workspace symbols by query string (paged).",
   "type": "object",
   "additionalProperties": false,
