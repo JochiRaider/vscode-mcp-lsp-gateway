@@ -263,6 +263,11 @@ Mitigates: denial of service, resource exhaustion, nondeterministic leakage.
   - bounded (truncate long values deterministically)
 - When enabled, debug traces are metadata-only (method/path, status, byte counts, durations, JSON-RPC method/kind,
   tool name + argument keys, cursor presence, and count summaries). No raw bodies, raw params, or out-of-root paths.
+- Trace logging (separate OutputChannel) MUST be:
+  - opt-in
+  - sanitized to JSON-RPC shapes only (no raw bodies)
+  - redacted (tokens/session IDs and path-like strings)
+  - bounded (deterministic truncation and caps)
 
 Mitigates: information disclosure.
 
@@ -326,6 +331,7 @@ Note:
 
 - Keep disabled by default.
 - Enable only for short troubleshooting sessions and review logs for accidental leakage.
+- Prefer trace logging when you need to inspect sanitized JSON-RPC request/response shapes.
 
 ---
 

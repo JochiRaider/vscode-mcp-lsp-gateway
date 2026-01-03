@@ -14,6 +14,7 @@
 import { createSessionStore, type SessionStore } from '../server/session.js';
 import type { Logger } from '../logging/redact.js';
 import { redactString } from '../logging/redact.js';
+import { sanitizeForTrace, sanitizeJsonRpcMessage } from '../logging/traceSanitize.js';
 import type { McpPostContext, McpPostHandler, McpPostResult } from '../server/router.js';
 import { parseJsonRpcMessage, type JsonRpcId, type JsonRpcErrorObject } from './jsonrpc.js';
 import { dispatchToolsList, dispatchToolCall, type ToolCallResult } from '../tools/dispatcher.js';
@@ -44,6 +45,10 @@ export type CreateMcpPostHandlerOptions = Readonly<{
    * Optional logger for unexpected internal errors.
    */
   logger?: Logger;
+  /**
+   * Optional trace logger for sanitized JSON-RPC request/response shapes.
+   */
+  traceLogger?: Logger;
   /**
    * Interop escape hatch:
    * If (and only if) you reproduce a client that omits MCP-Protocol-Version on notifications/initialized,
@@ -95,12 +100,19 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
   return async function onMcpPost(ctx: McpPostContext): Promise<McpPostResult> {
     const bodyText = ctx.bodyText;
     const logger = opts.logger;
+    const traceLogger = opts.traceLogger;
     const rid = ctx.requestId;
 
     const parsed = parseJsonRpcMessage(bodyText);
     if (!parsed.ok) {
       logger?.debug('jsonrpc.invalid', {
         rid,
+        reason: parsed.reason,
+        bodyBytes: ctx.bodyBytes,
+      });
+      traceLogger?.info('trace.in', {
+        rid,
+        kind: 'invalid',
         reason: parsed.reason,
         bodyBytes: ctx.bodyBytes,
       });
@@ -116,6 +128,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         idPresent: true,
         bodyBytes: ctx.bodyBytes,
       });
+      traceLogger?.info('trace.in', { rid, message: sanitizeJsonRpcMessage(parsed.message) });
       return { status: 202 };
     }
 
@@ -128,6 +141,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       idPresent: parsed.message.kind === 'request',
       bodyBytes: ctx.bodyBytes,
     });
+    traceLogger?.info('trace.in', { rid, message: sanitizeJsonRpcMessage(parsed.message) });
 
     // Lifecycle / post-init model:
     // - Pre-init: only "initialize" should succeed.
@@ -174,14 +188,25 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       // Validate required param: params.protocolVersion must match.
       const pv = getProtocolVersionParam(req.params);
       if (!isAcceptedInitializeProtocolVersion(pv, opts)) {
-        return jsonRpcErrorResponse(req.id, {
+        const error = {
           code: -32602,
           message: 'Invalid params',
           data: {
             expected: opts.protocolVersion,
             got: pv ?? null,
           },
+        };
+        const response = jsonRpcErrorResponse(req.id, error);
+        traceLogger?.info('trace.out', {
+          rid,
+          status: response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            error: sanitizeForTrace(error),
+          },
         });
+        return response;
       }
 
       const result: InitializeResult = {
@@ -193,7 +218,19 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       };
 
       const initResponse = jsonRpcResultResponseWithCap(req.id, result, opts.maxResponseBytes);
-      if (!initResponse.ok) return initResponse.response;
+      if (!initResponse.ok) {
+        const error = capExceededError('Response exceeded maxResponseBytes.');
+        traceLogger?.info('trace.out', {
+          rid,
+          status: initResponse.response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            error: sanitizeForTrace(error),
+          },
+        });
+        return initResponse.response;
+      }
 
       // Success path:
       didAnyInitializeSucceed = true;
@@ -201,12 +238,30 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       if (opts.enableSessions) {
         // Mint and attach MCP-Session-Id header.
         const sessionId = sessionStore!.create(opts.protocolVersion);
+        traceLogger?.info('trace.out', {
+          rid,
+          status: initResponse.response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            result: sanitizeForTrace(result),
+          },
+        });
         return {
           ...initResponse.response,
           headers: { 'MCP-Session-Id': sessionId },
         };
       }
 
+      traceLogger?.info('trace.out', {
+        rid,
+        status: initResponse.response.status,
+        message: {
+          kind: 'response',
+          id: req.id,
+          result: sanitizeForTrace(result),
+        },
+      });
       return initResponse.response;
     }
 
@@ -244,6 +299,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       }
 
       // Spec: notifications return 202 with no body.
+      traceLogger?.info('trace.out', { rid, status: 202, kind: 'notification' });
       return { status: 202 };
     }
 
@@ -261,6 +317,7 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         );
         if (!hdr.ok) return { status: hdr.status };
       }
+      traceLogger?.info('trace.out', { rid, status: 202, kind: 'notification' });
       return { status: 202 };
     }
 
@@ -270,7 +327,17 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     // Lifecycle: require initialization before serving any non-initialize requests.
     // This is a JSON-RPC-level error (not a transport-level error) because the envelope is valid.
     if (!postInit) {
-      return jsonRpcErrorResponse(req.id, { code: -32600, message: 'Not initialized' });
+      const response = jsonRpcErrorResponse(req.id, { code: -32600, message: 'Not initialized' });
+      traceLogger?.info('trace.out', {
+        rid,
+        status: response.status,
+        message: {
+          kind: 'response',
+          id: req.id,
+          error: sanitizeForTrace({ code: -32600, message: 'Not initialized' }),
+        },
+      });
+      return response;
     }
 
     // Enforce post-init headers (HTTP-layer errors, empty body).
@@ -288,18 +355,46 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         const sid = hdr.sessionId!;
         const st = sessionStore!.get(sid);
         if (!st?.initializedNotificationSeen) {
-          return jsonRpcErrorResponse(req.id, {
+          const response = jsonRpcErrorResponse(req.id, {
             code: -32600,
             message: 'Not initialized',
             data: { detail: 'notifications/initialized not received' },
           });
+          traceLogger?.info('trace.out', {
+            rid,
+            status: response.status,
+            message: {
+              kind: 'response',
+              id: req.id,
+              error: sanitizeForTrace({
+                code: -32600,
+                message: 'Not initialized',
+                data: { detail: 'notifications/initialized not received' },
+              }),
+            },
+          });
+          return response;
         }
       } else if (!didReceiveInitializedNotification) {
-        return jsonRpcErrorResponse(req.id, {
+        const response = jsonRpcErrorResponse(req.id, {
           code: -32600,
           message: 'Not initialized',
           data: { detail: 'notifications/initialized not received' },
         });
+        traceLogger?.info('trace.out', {
+          rid,
+          status: response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            error: sanitizeForTrace({
+              code: -32600,
+              message: 'Not initialized',
+              data: { detail: 'notifications/initialized not received' },
+            }),
+          },
+        });
+        return response;
       }
     }
 
@@ -307,6 +402,17 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
     if (method === 'ping') {
       // Keep result deterministic and minimal.
       const response = jsonRpcResultResponseWithCap(req.id, {}, opts.maxResponseBytes);
+      traceLogger?.info('trace.out', {
+        rid,
+        status: response.response.status,
+        message: {
+          kind: 'response',
+          id: req.id,
+          ...(response.ok
+            ? { result: sanitizeForTrace({}) }
+            : { error: sanitizeForTrace(capExceededError('Response exceeded maxResponseBytes.')) }),
+        },
+      });
       return response.response;
     }
 
@@ -315,27 +421,63 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       // Params: { cursor?: string | null }
       const cursorParsed = parseOptionalCursor(req.params);
       if (!cursorParsed.ok) {
-        return jsonRpcErrorResponse(req.id, {
+        const response = jsonRpcErrorResponse(req.id, {
           code: -32602,
           message: 'Invalid params',
           data: { code: ERR_INVALID_PARAMS },
         });
+        traceLogger?.info('trace.out', {
+          rid,
+          status: response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            error: sanitizeForTrace({
+              code: -32602,
+              message: 'Invalid params',
+              data: { code: ERR_INVALID_PARAMS },
+            }),
+          },
+        });
+        return response;
       }
       if (cursorParsed.cursor !== null) {
         // Fail closed: no pagination for tools/list in v1.
-        return jsonRpcErrorResponse(req.id, {
+        const response = jsonRpcErrorResponse(req.id, {
           code: -32602,
           message: 'Invalid params',
           data: { code: ERR_CURSOR_INVALID },
         });
+        traceLogger?.info('trace.out', {
+          rid,
+          status: response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            error: sanitizeForTrace({
+              code: -32602,
+              message: 'Invalid params',
+              data: { code: ERR_CURSOR_INVALID },
+            }),
+          },
+        });
+        return response;
       }
 
       // MCP semantics: { tools: [...], nextCursor?: undefined }
-      const response = jsonRpcResultResponseWithCap(
-        req.id,
-        dispatchToolsList(opts.schemaRegistry),
-        opts.maxResponseBytes,
-      );
+      const toolsList = dispatchToolsList(opts.schemaRegistry);
+      const response = jsonRpcResultResponseWithCap(req.id, toolsList, opts.maxResponseBytes);
+      traceLogger?.info('trace.out', {
+        rid,
+        status: response.response.status,
+        message: {
+          kind: 'response',
+          id: req.id,
+          ...(response.ok
+            ? { result: sanitizeForTrace(toolsList) }
+            : { error: sanitizeForTrace(capExceededError('Response exceeded maxResponseBytes.')) }),
+        },
+      });
       return response.response;
     }
 
@@ -345,11 +487,25 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
       try {
         const parsedCall = parseToolsCallParams(req.params);
         if (!parsedCall.ok) {
-          return jsonRpcErrorResponse(req.id, {
+          const response = jsonRpcErrorResponse(req.id, {
             code: -32602,
             message: 'Invalid params',
             data: { code: ERR_INVALID_PARAMS },
           });
+          traceLogger?.info('trace.out', {
+            rid,
+            status: response.status,
+            message: {
+              kind: 'response',
+              id: req.id,
+              error: sanitizeForTrace({
+                code: -32602,
+                message: 'Invalid params',
+                data: { code: ERR_INVALID_PARAMS },
+              }),
+            },
+          });
+          return response;
         }
 
         toolName = parsedCall.name;
@@ -368,10 +524,20 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
           maxItemsPerPage: opts.maxItemsPerPage,
           requestTimeoutMs: opts.requestTimeoutMs,
           toolRuntime: opts.toolRuntime,
+          ...(opts.traceLogger ? { traceLogger: opts.traceLogger } : {}),
         });
 
         if (!dispatched.ok) {
           const response = jsonRpcErrorResponse(req.id, dispatched.error);
+          traceLogger?.info('trace.out', {
+            rid,
+            status: response.status,
+            message: {
+              kind: 'response',
+              id: req.id,
+              error: sanitizeForTrace(dispatched.error),
+            },
+          });
           logger?.debug('tools.result', {
             rid,
             tool: toolName,
@@ -389,6 +555,19 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
               ).result
             : dispatched.result;
         const response = jsonRpcResultResponseWithCap(req.id, toolResult, opts.maxResponseBytes);
+        traceLogger?.info('trace.out', {
+          rid,
+          status: response.response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            ...(response.ok
+              ? { result: sanitizeForTrace(toolResult) }
+              : {
+                  error: sanitizeForTrace(capExceededError('Response exceeded maxResponseBytes.')),
+                }),
+          },
+        });
         logger?.debug('tools.result', {
           rid,
           tool: toolName,
@@ -402,12 +581,32 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
         return response.response;
       } catch (err) {
         logUnexpectedToolError(opts.logger, toolName, err);
-        return jsonRpcErrorResponse(req.id, internalError());
+        const response = jsonRpcErrorResponse(req.id, internalError());
+        traceLogger?.info('trace.out', {
+          rid,
+          status: response.status,
+          message: {
+            kind: 'response',
+            id: req.id,
+            error: sanitizeForTrace(internalError()),
+          },
+        });
+        return response;
       }
     }
 
     // Default: method not found.
-    return jsonRpcErrorResponse(req.id, { code: -32601, message: 'Method not found' });
+    const response = jsonRpcErrorResponse(req.id, { code: -32601, message: 'Method not found' });
+    traceLogger?.info('trace.out', {
+      rid,
+      status: response.status,
+      message: {
+        kind: 'response',
+        id: req.id,
+        error: sanitizeForTrace({ code: -32601, message: 'Method not found' }),
+      },
+    });
+    return response;
   };
 }
 

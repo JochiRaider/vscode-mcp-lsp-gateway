@@ -25,10 +25,16 @@ type GatewaySettings = Readonly<{
   maxResponseBytes: number;
   requestTimeoutMs: number;
   debugLogging: boolean;
+  traceLogging: boolean;
+  traceLogMaxChars: number;
 }>;
 
 const EXT_NS = 'mcpLspGateway';
 const OUT_CHAN_NAME = 'MCP LSP Gateway';
+const TRACE_OUT_CHAN_NAME = 'MCP LSP Gateway (Trace)';
+const TRACE_LOG_DEFAULT_MAX_CHARS = 8192;
+const TRACE_LOG_MIN_MAX_CHARS = 4096;
+const TRACE_LOG_MAX_MAX_CHARS = 16384;
 
 /**
  * NOTE: This intentionally fails closed. If a setting is invalid or expands trust
@@ -57,6 +63,8 @@ function readAndValidateSettings(): { settings?: GatewaySettings; problems: stri
   const maxResponseBytes = Number(cfg.get<number>('maxResponseBytes', 524_288));
   const requestTimeoutMs = Number(cfg.get<number>('requestTimeoutMs', 2_000));
   const debugLogging = !!cfg.get<boolean>('debugLogging', false);
+  const traceLogging = !!cfg.get<boolean>('traceLogging', false);
+  const traceLogMaxChars = Number(cfg.get<number>('traceLogMaxChars', TRACE_LOG_DEFAULT_MAX_CHARS));
 
   const problems: string[] = [];
 
@@ -89,6 +97,15 @@ function readAndValidateSettings(): { settings?: GatewaySettings; problems: stri
       `requestTimeoutMs must be an integer in [250, 2000] (got "${requestTimeoutMs}").`,
     );
 
+  if (
+    !Number.isInteger(traceLogMaxChars) ||
+    traceLogMaxChars < TRACE_LOG_MIN_MAX_CHARS ||
+    traceLogMaxChars > TRACE_LOG_MAX_MAX_CHARS
+  )
+    problems.push(
+      `traceLogMaxChars must be an integer in [${TRACE_LOG_MIN_MAX_CHARS}, ${TRACE_LOG_MAX_MAX_CHARS}] (got "${traceLogMaxChars}").`,
+    );
+
   if (problems.length) return { problems };
 
   return {
@@ -107,6 +124,8 @@ function readAndValidateSettings(): { settings?: GatewaySettings; problems: stri
       maxResponseBytes,
       requestTimeoutMs,
       debugLogging,
+      traceLogging,
+      traceLogMaxChars,
     },
   };
 }
@@ -229,6 +248,7 @@ async function copyCodexConfigTomlCommand(context: vscode.ExtensionContext): Pro
 class ExtensionRuntime {
   public constructor(private readonly context: vscode.ExtensionContext) {}
   private readonly output = vscode.window.createOutputChannel(OUT_CHAN_NAME);
+  private traceOutput: vscode.OutputChannel | undefined;
   private server: HttpServer | undefined;
   private toolRuntime: ToolRuntime | undefined;
   private readonly runtimeDisposables: vscode.Disposable[] = [];
@@ -241,6 +261,8 @@ class ExtensionRuntime {
     this.restartTimer = undefined;
     void this.stopServer();
     this.output.dispose();
+    this.traceOutput?.dispose();
+    this.traceOutput = undefined;
   }
 
   public async ensureStartedIfEnabled(): Promise<void> {
@@ -261,6 +283,10 @@ class ExtensionRuntime {
     }
 
     if (!settings.enabled) {
+      if (this.traceOutput) {
+        this.traceOutput.dispose();
+        this.traceOutput = undefined;
+      }
       await this.stopServer();
       return;
     }
@@ -295,6 +321,8 @@ class ExtensionRuntime {
       maxResponseBytes: settings.maxResponseBytes,
       requestTimeoutMs: settings.requestTimeoutMs,
       debugLogging: settings.debugLogging,
+      traceLogging: settings.traceLogging,
+      traceLogMaxChars: settings.traceLogMaxChars,
       allowedOrigins: settings.allowedOrigins,
       additionalAllowedRoots: settings.additionalAllowedRoots,
       secretStorageKey: settings.secretStorageKey,
@@ -344,6 +372,20 @@ class ExtensionRuntime {
     this.registerRuntimeWatchers(toolRuntime);
 
     const logger = createLogger(this.output, { debugEnabled: settings.debugLogging });
+    if (settings.traceLogging && !this.traceOutput) {
+      this.traceOutput = vscode.window.createOutputChannel(TRACE_OUT_CHAN_NAME);
+    }
+    if (!settings.traceLogging && this.traceOutput) {
+      this.traceOutput.dispose();
+      this.traceOutput = undefined;
+    }
+    const traceLogger =
+      settings.traceLogging && this.traceOutput
+        ? createLogger(this.traceOutput, {
+            debugEnabled: true,
+            maxChars: settings.traceLogMaxChars,
+          })
+        : undefined;
     const onMcpPost = createMcpPostHandler({
       protocolVersion: '2025-11-25',
       serverInfo,
@@ -356,6 +398,7 @@ class ExtensionRuntime {
       requestTimeoutMs: settings.requestTimeoutMs,
       allowedRootsRealpaths,
       logger,
+      ...(traceLogger ? { traceLogger } : {}),
       // Keep fail-closed unless you have a reproduced interop issue + a smoke test.
       allowMissingProtocolVersionOnInitializedNotification: false,
     });

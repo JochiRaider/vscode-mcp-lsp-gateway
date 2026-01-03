@@ -23,6 +23,8 @@ describe('http server auth', () => {
       maxResponseBytes: 524_288,
       requestTimeoutMs: 2_000,
       debugLogging: false,
+      traceLogging: false,
+      traceLogMaxChars: 8192,
     };
 
     const secrets = {

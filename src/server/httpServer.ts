@@ -20,6 +20,8 @@ export type GatewaySettings = Readonly<{
   maxResponseBytes: number;
   requestTimeoutMs: number;
   debugLogging: boolean;
+  traceLogging: boolean;
+  traceLogMaxChars: number;
 }>;
 
 export class HttpServer {

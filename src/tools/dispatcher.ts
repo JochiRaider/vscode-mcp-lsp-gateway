@@ -13,6 +13,7 @@
 // - Handlers assume validated inputs and perform tool-specific gating/normalization.
 
 import type { JsonRpcErrorObject } from '../mcp/jsonrpc.js';
+import type { Logger } from '../logging/redact.js';
 import {
   buildV1ToolCatalog,
   isV1ToolName,
@@ -76,6 +77,7 @@ export type ToolsDispatcherDeps = Readonly<{
   requestTimeoutMs: number;
   toolRuntime: ToolRuntime;
   cacheWriteGuard?: CacheWriteGuard;
+  traceLogger?: Logger;
 }>;
 
 type HandlerResult =
@@ -119,6 +121,7 @@ const ROUTES: Readonly<Record<V1ToolName, RoutedHandler>> = {
       allowedRootsRealpaths: deps.allowedRootsRealpaths,
       maxItemsPerPage: deps.maxItemsPerPage,
       toolRuntime: deps.toolRuntime,
+      ...(deps.traceLogger ? { traceLogger: deps.traceLogger } : {}),
     });
   },
 

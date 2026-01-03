@@ -142,6 +142,8 @@ Primary settings (machine-scoped):
 - `mcpLspGateway.maxResponseBytes` (default/max `524288`)
 - `mcpLspGateway.requestTimeoutMs` (default/max `2000`)
 - `mcpLspGateway.debugLogging` (default `false`)
+- `mcpLspGateway.traceLogging` (default `false`)
+- `mcpLspGateway.traceLogMaxChars` (default `8192`, min `4096`, max `16384`)
 - `mcpLspGateway.secretStorageKey` (default `mcpLspGateway.authTokens`; tokens must remain in SecretStorage)
 
 ---

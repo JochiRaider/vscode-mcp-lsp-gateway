@@ -9,6 +9,7 @@
 
 import * as vscode from 'vscode';
 import type { JsonRpcErrorObject } from '../../mcp/jsonrpc.js';
+import type { Logger } from '../../logging/redact.js';
 import { canonicalizeFileUri, isRealPathAllowed } from '../../workspace/uri.js';
 import { allowCacheWrite, type CacheWriteGuard, type ToolRuntime } from '../runtime/toolRuntime.js';
 import { stableIdFromCanonicalString } from '../ids.js';
@@ -57,7 +58,22 @@ export type WorkspaceSymbolsDeps = Readonly<{
   maxItemsPerPage: number;
   toolRuntime: ToolRuntime;
   cacheWriteGuard?: CacheWriteGuard;
+  traceLogger?: Logger;
 }>;
+
+export type WorkspaceSymbolsStats = Readonly<{
+  providerCount: number;
+  inRootCount: number;
+  droppedOutOfRootCount: number;
+  droppedInvalidCount: number;
+}>;
+
+type WorkspaceSymbolsStatsMutable = {
+  providerCount: number;
+  inRootCount: number;
+  droppedOutOfRootCount: number;
+  droppedInvalidCount: number;
+};
 
 type CanonicalizeResult = Awaited<ReturnType<typeof canonicalizeFileUri>>;
 type CanonicalizeFn = (uriString: string) => Promise<CanonicalizeResult>;
@@ -97,6 +113,7 @@ export async function handleWorkspaceSymbols(
     deduped = cached;
   } else {
     const computed = await deps.toolRuntime.singleflight(snapshotKey, async () => {
+      const stats = createWorkspaceSymbolsStats();
       let raw: unknown;
       try {
         raw = await vscode.commands.executeCommand(
@@ -110,7 +127,12 @@ export async function handleWorkspaceSymbols(
         };
       }
 
-      const normalized = await normalizeWorkspaceSymbols(raw, deps.allowedRootsRealpaths);
+      const normalized = await normalizeWorkspaceSymbols(
+        raw,
+        deps.allowedRootsRealpaths,
+        undefined,
+        stats,
+      );
       normalized.sort(compareWorkspaceSymbols);
       const nextDeduped = dedupeSortedByKey(normalized, canonicalDedupeKey);
 
@@ -122,7 +144,19 @@ export async function handleWorkspaceSymbols(
         if (!stored.stored) return { ok: false as const, error: snapshotTooLargeError() };
       }
 
-      return { ok: true as const, value: nextDeduped };
+      if (deps.traceLogger) {
+        deps.traceLogger.info('workspaceSymbols.stats', {
+          queryLength: normalizedQuery.length,
+          cursorPresent: false,
+          pageSize,
+          providerCount: stats.providerCount,
+          inRootCount: stats.inRootCount,
+          droppedOutOfRootCount: stats.droppedOutOfRootCount,
+          droppedInvalidCount: stats.droppedInvalidCount,
+        });
+      }
+
+      return { ok: true as const, value: nextDeduped, stats };
     });
 
     if (!computed.ok) return { ok: false, error: computed.error };
@@ -164,32 +198,45 @@ export async function normalizeWorkspaceSymbols(
   raw: unknown,
   allowedRootsRealpaths: readonly string[],
   canonicalize: CanonicalizeFn = canonicalizeFileUri,
+  stats?: WorkspaceSymbolsStatsMutable,
 ): Promise<ContractWorkspaceSymbol[]> {
   const out: ContractWorkspaceSymbol[] = [];
   const canonicalizeCached = createCanonicalizeCache(canonicalize);
   const items = normalizeToArray(raw);
+  if (stats) stats.providerCount = items.length;
   for (const item of items) {
-    const symbol = await normalizeOneSymbol(item, allowedRootsRealpaths, canonicalizeCached);
-    if (symbol) out.push(symbol);
+    const outcome = await normalizeOneSymbol(item, allowedRootsRealpaths, canonicalizeCached);
+    if (outcome.kind === 'ok') {
+      if (stats) stats.inRootCount += 1;
+      out.push(outcome.symbol);
+    } else if (stats) {
+      if (outcome.reason === 'out-of-root') stats.droppedOutOfRootCount += 1;
+      else stats.droppedInvalidCount += 1;
+    }
   }
   return out;
 }
+
+type NormalizeOutcome =
+  | Readonly<{ kind: 'ok'; symbol: ContractWorkspaceSymbol }>
+  | Readonly<{ kind: 'drop'; reason: 'out-of-root' | 'invalid' }>;
 
 async function normalizeOneSymbol(
   item: unknown,
   allowedRootsRealpaths: readonly string[],
   canonicalize: CanonicalizeFn,
-): Promise<ContractWorkspaceSymbol | undefined> {
-  if (!item || typeof item !== 'object') return undefined;
+): Promise<NormalizeOutcome> {
+  if (!item || typeof item !== 'object') return { kind: 'drop', reason: 'invalid' };
   const rec = item as Record<string, unknown>;
 
   const name = rec.name;
   const kind = rec.kind;
-  if (typeof name !== 'string' || name.length === 0) return undefined;
-  if (typeof kind !== 'number' || !Number.isInteger(kind) || kind < 0) return undefined;
+  if (typeof name !== 'string' || name.length === 0) return { kind: 'drop', reason: 'invalid' };
+  if (typeof kind !== 'number' || !Number.isInteger(kind) || kind < 0)
+    return { kind: 'drop', reason: 'invalid' };
 
   const location = pickLocationLike(rec.location);
-  if (!location) return undefined;
+  if (!location) return { kind: 'drop', reason: 'invalid' };
 
   const loc = await canonicalizeAndFilterLocation(
     location.uri,
@@ -197,51 +244,58 @@ async function normalizeOneSymbol(
     allowedRootsRealpaths,
     canonicalize,
   );
-  if (!loc) return undefined;
+  if (!loc.ok) return { kind: 'drop', reason: loc.reason };
 
   const containerName =
     typeof rec.containerName === 'string' && rec.containerName.length > 0
       ? rec.containerName
       : undefined;
 
+  const canonLocation = loc.value;
   const canonicalString = [
-    loc.uri,
+    canonLocation.uri,
     name,
     kind,
-    rangeKey(loc.range.start),
-    rangeKey(loc.range.end),
+    rangeKey(canonLocation.range.start),
+    rangeKey(canonLocation.range.end),
     containerName ?? '',
   ].join('|');
 
   return {
-    id: stableIdFromCanonicalString(canonicalString),
-    name,
-    kind,
-    location: loc,
-    ...(containerName ? { containerName } : undefined),
+    kind: 'ok',
+    symbol: {
+      id: stableIdFromCanonicalString(canonicalString),
+      name,
+      kind,
+      location: canonLocation,
+      ...(containerName ? { containerName } : undefined),
+    },
   };
 }
+
+type CanonicalizeLocationResult =
+  | Readonly<{ ok: true; value: ContractLocation }>
+  | Readonly<{ ok: false; reason: 'out-of-root' | 'invalid' }>;
 
 async function canonicalizeAndFilterLocation(
   uri: vscode.Uri,
   range: vscode.Range,
   allowedRootsRealpaths: readonly string[],
   canonicalize: CanonicalizeFn,
-): Promise<ContractLocation | undefined> {
+): Promise<CanonicalizeLocationResult> {
   const uriString = safeUriString(uri);
-  if (!uriString) return undefined;
+  if (!uriString) return { ok: false, reason: 'invalid' };
 
   const canon = await canonicalize(uriString);
-  if (!canon.ok) return undefined;
-  if (!isRealPathAllowed(canon.value.realPath, allowedRootsRealpaths)) return undefined;
+  if (!canon.ok) return { ok: false, reason: 'invalid' };
+  if (!isRealPathAllowed(canon.value.realPath, allowedRootsRealpaths)) {
+    return { ok: false, reason: 'out-of-root' };
+  }
 
   const contractRange = toContractRange(range);
-  if (!contractRange) return undefined;
+  if (!contractRange) return { ok: false, reason: 'invalid' };
 
-  return {
-    uri: canon.value.uri,
-    range: contractRange,
-  };
+  return { ok: true, value: { uri: canon.value.uri, range: contractRange } };
 }
 
 function toContractRange(r: vscode.Range): ContractRange | undefined {
@@ -267,6 +321,15 @@ function normalizeToArray(raw: unknown): unknown[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   return [raw];
+}
+
+function createWorkspaceSymbolsStats(): WorkspaceSymbolsStatsMutable {
+  return {
+    providerCount: 0,
+    inRootCount: 0,
+    droppedOutOfRootCount: 0,
+    droppedInvalidCount: 0,
+  };
 }
 
 type LocationLike = Readonly<{ uri: vscode.Uri; range: vscode.Range }>;
