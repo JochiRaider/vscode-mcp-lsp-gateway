@@ -8,21 +8,31 @@
 
 ## Context by file
 
+- `.codex/skills/lsp-audit-determinism-and-paging/SKILL.md` — Skill instructions for auditing paging determinism and caps.
+- `.codex/skills/lsp-audit-schema-runtime-consistency/SKILL.md` — Skill instructions for schema/runtime/contract consistency audits.
+- `.codex/skills/lsp-audit-security-boundary/SKILL.md` — Skill instructions for auditing auth/origin/roots/logging security boundaries.
+- `.codex/skills/lsp-map-feature-surface/SKILL.md` — Skill instructions for mapping entrypoints and hotspots with LSP data.
+- `.codex/skills/lsp-trace-requirement-to-implementation/SKILL.md` — Skill instructions for tracing requirements through code and tests.
+- `.codex/skills/lsp-triage-error-to-root-cause/SKILL.md` — Skill instructions for error triage and root-cause mapping.
 - `.gitattributes` — Git attributes enforce LF endings and mark common binary file types.
 - `.gitignore` — Ignore dependencies, build outputs, caches, VS Code artifacts, and OS noise.
 - `.prettierignore` — Prettier ignore list for build outputs, node_modules, coverage, and VSIX.
 - `.prettierrc.json` — Prettier configuration with 100 width, single quotes, trailing commas, semicolons.
 - `.vscode-test.mjs` — VS Code test CLI config pointing at compiled tests and extension root.
+- `.vscode/settings.json` — Workspace setting enabling Codex execution in WSL.
 - `.vscodeignore` — VS Code extension packaging exclude list for sources and build artifacts.
 - `AGENTS.md` — Contributor guide: contracts, security invariants, validation commands, and workflow expectations.
 - `LICENSE` — MIT License granting broad permissions with warranty disclaimer and liability limits.
-- `README.md` — Brief overview of the VS Code MCP LSP gateway extension.
+- `README.md` — Overview, quick start, configuration, and security notes for the extension.
+- `docs/CODEX_SKILLs.md` — Best practices for authoring Codex skills in CLI/IDE contexts.
 - `docs/CONTRACT.md` — Authoritative v1 tool catalog, determinism rules, caps, and JSON-RPC error taxonomy.
 - `docs/CORE_FILES.md` — Quick list of contract-critical source and doc files.
 - `docs/PROTOCOL.md` — Streamable HTTP transport contract: endpoint, headers, status codes, init lifecycle.
 - `docs/SCHEMA.md` — Schema governance for v1 tools: dialect, layout, invariants, and change workflow.
 - `docs/SECURITY.md` — Threat model and enforced controls for localhost-only, read-only MCP gateway.
 - `docs/REPO_MAP.md` — Repository map of tracked files with one-line summaries.
+- `docs/REVIEW_GUIDE.md` — Review checklist and audit protocol for contract, security, and determinism compliance.
+- `docs/TODO.md` — Backlog items and skill-pack notes for future work.
 - `esbuild.js` — esbuild script for bundling the extension in build or watch mode.
 - `eslint.config.mjs` — ESLint flat configuration for TypeScript tests and sources with Prettier.
 - `package-lock.json` — npm lockfile capturing resolved dependency versions and integrity hashes.
@@ -72,6 +82,7 @@
 - `src/tools/schemaRegistry.ts` — Loads and compiles tool input/output schemas with Ajv; deterministic validation errors.
 - `src/tools/sorting.ts` — Stable sorting and dedupe helpers for locations, symbols, and diagnostics.
 - `src/tools/truncate.ts` — Deterministic hover truncation helpers enforcing fragment caps and response byte limits.
+- `src/types/fast-stable-stringify.d.ts` — Local type definitions for fast-stable-stringify.
 - `src/util/codexConfigToml.ts` — Builds deterministic Codex config.toml stanzas with token inline.
 - `src/util/responseSize.ts` — UTF-8 and JSON byte length helpers for response size enforcement.
 - `src/util/stableStringify.ts` — Stable JSON stringify wrapper using fast-stable-stringify for dedupe keys.

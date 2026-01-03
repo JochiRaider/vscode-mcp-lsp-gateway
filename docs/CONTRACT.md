@@ -71,6 +71,11 @@ No additional tools may be added or renamed without updating:
 - the tool JSON Schemas
 - tests asserting the exact catalog
 
+`tools/list` does not support paging in v1:
+
+- `params.cursor` MUST be omitted or `null`.
+- Any non-null cursor is rejected with `-32602 Invalid params` and `MCP_LSP_GATEWAY/CURSOR_INVALID`.
+
 ### 2.2 Tool metadata requirements
 
 In `tools/list`, each returned tool entry MUST include:
@@ -100,7 +105,7 @@ For a successful `tools/call`, the JSON-RPC response `result` MUST be an MCP too
   "structuredContent": {
     /* tool payload object (see §7) */
   },
-  "content": []
+  "content": [{ "type": "text", "text": "..." }]
 }
 ```
 
@@ -112,12 +117,14 @@ Rules (v1):
 
 - **No back-compat text JSON (token-minimizing)**:
   - The server MUST NOT serialize or duplicate the full tool payload JSON into `result.content`.
-  - Clients MUST parse `structuredContent` for automation and MUST treat `content` as optional, human-oriented text.
+- Clients MUST parse `structuredContent` for automation and MUST treat `content` as human-oriented text only.
 
 - **`content` policy**:
-  - `content` MAY be empty (`[]`).
-  - If present, `content` MUST contain only short, non-sensitive text (for example a one-line summary), and MUST NOT
-    include secrets, raw request bodies, or filesystem paths outside allowed roots.
+  - `content` always contains a single `{type:"text",text:"..."}` entry in v1.
+  - The text is derived from `structuredContent.summary` when present (normalized whitespace, max 200 chars).
+  - If no summary is present, the text is `"OK"`.
+  - `content` MUST contain only short, non-sensitive text and MUST NOT include secrets, raw request bodies, or
+    filesystem paths outside allowed roots.
 
 - **Errors**:
   - Tool failures are returned as JSON-RPC `error` objects per §6 (not as `result.isError: true`) in v1.
@@ -525,6 +532,8 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 - `pageSize` clamped to `MAX_PAGE_SIZE`
 - total canonical set cap: `MAX_REFERENCES_ITEMS_TOTAL`
+- raw provider cap: if the raw provider result is an array with more than
+  `MAX_REFERENCES_ITEMS_TOTAL * 4` entries, return `CAP_EXCEEDED` (no partial results)
 
 **Stable id (cursor request key)**
 
@@ -626,6 +635,7 @@ All tools accept `input` consistent with their per-tool JSON Schemas in `schemas
 
 - `symbols.length <= MAX_ITEMS_NONPAGED`
 - If traversal exceeds the total-set cap, return `CAP_EXCEEDED` (no partial results).
+- Max traversal nodes: `MAX_SYMBOL_NODES_VISITED = 20,000` (deterministic cap before truncation).
 
 ---
 

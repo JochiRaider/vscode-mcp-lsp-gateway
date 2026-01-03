@@ -144,6 +144,12 @@ The server MAY return:
 3. Client sends JSON-RPC **notification** `notifications/initialized`
 4. Server responds `202 Accepted` (no body) for the notification
 
+Additional rules:
+
+- `notifications/initialized` sent **before** a successful `initialize` is rejected at the transport layer (`400 Bad Request`, empty body).
+- If `notifications/initialized` is sent as a JSON-RPC **request** (has `id`), the server returns a JSON-RPC error (`-32600 Invalid Request`).
+- After `initialize`, the server requires `notifications/initialized` **before** any non-`ping` request. If missing, it returns a JSON-RPC error (`-32600 Not initialized`).
+
 ### 5.2 Initialize request requirements
 
 - `initialize` MUST be a JSON-RPC request (i.e., it MUST include an `id`).
@@ -165,6 +171,11 @@ The server MAY return:
   - Origin rules apply
   - `MCP-Protocol-Version: 2025-11-25` required
   - `MCP-Session-Id` required if sessions enabled
+
+### 5.4 Ping (health check)
+
+- `ping` is accepted **after** `initialize` even if `notifications/initialized` has not been sent yet.
+- `ping` returns a deterministic empty object (`{}`) as the JSON-RPC result.
 
 ---
 
@@ -188,6 +199,10 @@ If the POST body is a valid JSON-RPC **request** (has `id`):
 If an error occurs while processing a JSON-RPC request that has an `id`:
 
 - Return a JSON-RPC error object in the response body (still `200 OK`).
+
+Lifecycle gate:
+
+- If a request (other than `initialize`) arrives **before** `notifications/initialized`, the server returns a JSON-RPC error (`-32600 Not initialized`).
 
 For MCP methods (including `tools/list` and `tools/call`), the JSON-RPC `result` payload MUST follow this repo’s
 contract. In particular, successful `tools/call` responses return tool payloads in `result.structuredContent`
@@ -271,6 +286,15 @@ HTTP request body:
 
 - `{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`
 
+HTTP request headers:
+
+- `POST /mcp`
+- `Authorization: Bearer …`
+- `Content-Type: application/json`
+- `Accept: application/json, text/event-stream`
+- (Post-init) `MCP-Protocol-Version: 2025-11-25`
+- (Post-init, if sessions enabled) `MCP-Session-Id: ...`
+
 HTTP response:
 
 - `202 Accepted`
@@ -296,13 +320,13 @@ HTTP response:
 - `200 OK`
 - `Content-Type: application/json`
 
-Body (tool payload is in `result.structuredContent`; `content` is optional and MUST NOT duplicate JSON):
+Body (tool payload is in `result.structuredContent`; `content` is minimal text and MUST NOT duplicate JSON):
 
-- `{"jsonrpc":"2.0","id":"2","result":{"isError":false,"structuredContent":{...},"content":[]}}`
+- `{"jsonrpc":"2.0","id":"2","result":{"isError":false,"structuredContent":{...},"content":[{"type":"text","text":"..."}]}}`
 
 ### 8.4 Codex `config.toml` example (token inline)
 
-Paste into Codex’s config file (`~/.codex/config.toml` on macOS/Linux, `~\.codex\config.toml` on Windows):
+Paste into Codex’s `config.toml` (location depends on your Codex install):
 
 ```toml
 # vscode-mcp-lsp-gateway (local-only)
@@ -317,7 +341,7 @@ tool_timeout_sec = 60
 
 Notes:
 
-- `MCP-Protocol-Version: 2025-11-25` is **required post-init** (after `notifications/initialized`) and is **safe to send on all requests**, including `initialize`. This example includes it in `http_headers` so Codex will send it consistently.
+- `MCP-Protocol-Version: 2025-11-25` is **required after initialize** (including `notifications/initialized`) and is **safe to send on all requests**, including `initialize`. This example includes it in `http_headers` so Codex will send it consistently.
 - `MCP-Session-Id` **cannot be preconfigured** in static `config.toml`. If sessions are enabled, the server returns `MCP-Session-Id` in the `initialize` HTTP response header, and the client must include `MCP-Session-Id: <value>` on all subsequent requests.
 - On first enable, the extension may auto-provision a high-entropy bearer token in SecretStorage. Use **“MCP LSP Gateway: Set Bearer Token(s)”** if you want to set or rotate tokens explicitly.
 - You can also use **“MCP LSP Gateway: Copy Codex config.toml (Token Inline)”** to copy a ready-to-paste stanza with the required headers.

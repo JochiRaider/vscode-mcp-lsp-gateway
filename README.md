@@ -2,7 +2,7 @@
 
 A VS Code extension that exposes a minimal, **read-only** subset of VS Code’s language intelligence (LSP-like features) as MCP tools over **Streamable HTTP**, designed for deterministic, fail-closed operation under hard caps.
 
-## Quick start (VS Code + Codex IDE extension)
+## Quick start (VS Code + Codex client)
 
 ### 1) Install + trust the workspace (VS Code)
 
@@ -27,39 +27,27 @@ Use the command palette:
 
 Tokens are stored in VS Code SecretStorage (not in settings). If no tokens are present, the gateway auto-provisions one in SecretStorage when starting, and you can retrieve it via the “Copy Codex config.toml” command.
 
-### 4) Configure Codex IDE extension to use this MCP server (Codex config.toml)
+### 4) Configure your MCP client (Codex config.toml)
 
-Codex (CLI and IDE extension) reads MCP servers from `~/.codex/config.toml`. The CLI and IDE extension share the same file.
+Codex reads MCP servers from its `config.toml` file (location varies by install; see Codex docs).
 
-To open the file from the Codex IDE extension:
-
-- Open the Codex panel, select the gear icon, then choose **Codex Settings > Open config.toml** (in some views it may appear under MCP settings).
-
-Now add an entry for this gateway. You have two practical options:
-
-#### Option A (simplest): inline token in the config
+Now add an entry for this gateway.
 
 Use this extension’s command palette helper:
 
 - **MCP LSP Gateway: Copy Codex config.toml (Token Inline)**
 
-Paste the generated stanza into `~/.codex/config.toml`.
+Paste the generated stanza into your `config.toml`.
 
-#### Option B (recommended): keep the token out of the file
-
-Codex supports Streamable HTTP MCP servers with `bearer_token_env_var` (or `env_http_headers`) so secrets can come from the environment.
-
-Example stanza:
+Example stanza (placeholders shown):
 
 ```toml
 [mcp_servers.vscode_mcp_lsp_gateway]
 url = "http://127.0.0.1:3939/mcp"
 
-# Put the token in an environment variable, not in this file.
-bearer_token_env_var = "MCP_LSP_GATEWAY_TOKEN"
-
 # Required by this gateway’s transport contract.
 http_headers = {
+  "Authorization" = "Bearer ${BEARER_TOKEN}",
   "MCP-Protocol-Version" = "2025-11-25",
   "Accept" = "application/json, text/event-stream",
   "Content-Type" = "application/json"
@@ -70,13 +58,13 @@ startup_timeout_sec = 10
 tool_timeout_sec = 60
 ```
 
-Note: if sessions are enabled (default), the server returns `MCP-Session-Id` on `initialize` and the client must echo it on subsequent requests.
+Notes:
 
-### 5) Install and sign in to the Codex IDE extension (if needed)
+- `MCP-Protocol-Version: 2025-11-25` is required after `initialize` and is safe to send on all requests.
+- If sessions are enabled (default), the server returns `MCP-Session-Id` on `initialize`. The client must echo it on subsequent requests.
+- The server expects `notifications/initialized` before non-`ping` requests; otherwise it returns `-32600 Not initialized`.
 
-Codex’s VS Code extension is available via the VS Code Marketplace and works with VS Code forks (Cursor, Windsurf). Windows support is experimental; for best results on Windows, use a WSL workspace.
-
-### 6) Where to see logs (VS Code)
+### 5) Where to see logs (VS Code)
 
 Open **View → Output** and select the **“MCP LSP Gateway”** output channel.
 
@@ -120,6 +108,7 @@ All settings live under `mcpLspGateway.*`:
 - `port` (default: `3939`)
 - `endpointPath` (default: `/mcp`, enforced)
 - `enableSessions` (default: `true`)
+- `allowLegacyInitializeProtocolVersion` (default: `false`)
 - `allowedOrigins` (default: `[]`)
   - If an `Origin` header is present, it must match this allowlist exactly.
 
@@ -137,7 +126,7 @@ If any setting violates v1 invariants, the server fails closed and will not star
 ## Security notes
 
 - Do not store bearer tokens in repositories, tickets, chat logs, screenshots, or committed config files.
-- Prefer environment-sourced tokens (Codex `bearer_token_env_var`) when feasible.
+- Prefer environment-sourced tokens when feasible (client-supported).
 - Keep `additionalAllowedRoots` narrowly scoped. Avoid broad roots such as your entire home directory.
 
 See `docs/SECURITY.md` for the full threat model and testable invariants.

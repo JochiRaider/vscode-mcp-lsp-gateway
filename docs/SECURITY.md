@@ -147,7 +147,6 @@ Mitigates: spoofing, unauthorized access.
 Notes:
 
 - The extension SHOULD provide an interactive flow to set or rotate tokens.
-- TODO(verify): document the exact command(s) or UI entrypoint used to set tokens once implemented.
 - The extension provides interactive commands to manage tokens:
   - **“MCP LSP Gateway: Set Bearer Token(s)”**
   - **“MCP LSP Gateway: Copy Codex config.toml (Token Inline)”**
@@ -296,14 +295,14 @@ Mitigates: exfiltration paths, SSRF-like behaviors.
 - On first enable in a trusted workspace, the extension MAY auto-provision a high-entropy bearer token if none exists in SecretStorage.
 - Rotate tokens by adding the new token first, then removing the old token after all clients have switched.
 - Do not store tokens in workspace settings, user settings, logs, or any shared configuration that is committed to repositories.
-- If you use a “copy config” convenience flow that embeds the token inline, treat the resulting `~/.codex/config.toml` as a secret:
+- If you use a “copy config” convenience flow that embeds the token inline, treat the resulting `config.toml` as a secret:
   - do not commit or share it
   - restrict file permissions to the local user account where feasible
   - avoid pasting the token into tickets, chat, or screenshots
 
 Client guidance:
 
-- Prefer environment variable based token injection (for example, clients that support `bearer_token_env_var`) instead of storing tokens directly in plaintext configuration files.
+- Prefer client-supported environment-based token injection instead of storing tokens directly in plaintext configuration files.
 - If you must use plaintext token embedding for lowest friction, prefer short-lived tokens and rotate more frequently, and use the extension commands to clear and re-issue tokens as needed.
 
 ### 5.2 Origin allowlist
