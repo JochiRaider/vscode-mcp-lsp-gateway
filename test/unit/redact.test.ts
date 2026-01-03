@@ -42,4 +42,18 @@ describe('redaction', () => {
     expect(redacted['authorization']).to.equal('[REDACTED]');
     expect(redacted['content-type']).to.equal('application/json');
   });
+
+  it('bounds debug log output deterministically', () => {
+    const output = new FakeOutputChannel();
+    const logger = createLogger(output as unknown as vscode.OutputChannel, {
+      debugEnabled: true,
+      maxChars: 80,
+    });
+
+    logger.debug('test', { payload: 'x'.repeat(200) });
+
+    const line = output.lines[0] ?? '';
+    expect(line.length).to.be.at.most(80);
+    expect(line).to.include('[truncated]');
+  });
 });

@@ -261,6 +261,8 @@ Mitigates: denial of service, resource exhaustion, nondeterministic leakage.
   - opt-in
   - redacted (Authorization and session headers, plus token-like values)
   - bounded (truncate long values deterministically)
+- When enabled, debug traces are metadata-only (method/path, status, byte counts, durations, JSON-RPC method/kind,
+  tool name + argument keys, cursor presence, and count summaries). No raw bodies, raw params, or out-of-root paths.
 
 Mitigates: information disclosure.
 

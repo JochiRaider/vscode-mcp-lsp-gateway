@@ -3,7 +3,8 @@ import type * as http from 'node:http';
 import { expect } from 'chai';
 import { createRouter, MAX_REQUEST_BYTES, type McpPostHandler } from '../../src/server/router.js';
 import type { AuthVerifier } from '../../src/server/auth.js';
-import type { Logger } from '../../src/logging/redact.js';
+import { createLogger, type Logger } from '../../src/logging/redact.js';
+import type * as vscode from 'vscode';
 
 const logger: Logger = {
   debug: () => undefined,
@@ -47,6 +48,14 @@ class MockResponse {
     this.writableEnded = true;
     this.bodyText = body;
     this.resolveDone();
+  }
+}
+
+class FakeOutputChannel {
+  public lines: string[] = [];
+
+  public appendLine(line: string): void {
+    this.lines.push(line);
   }
 }
 
@@ -133,5 +142,40 @@ describe('router boundary', () => {
     expect(seen?.['authorization']).to.equal(undefined);
     expect(seen?.['mcp-session-id']).to.equal('session-123');
     expect(seen?.['mcp-protocol-version']).to.equal('2025-11-25');
+  });
+
+  it('emits debug trace logs without leaking secrets', async () => {
+    const output = new FakeOutputChannel();
+    const debugLogger = createLogger(output as unknown as vscode.OutputChannel, {
+      debugEnabled: true,
+      maxChars: 2048,
+    });
+    const listener = createRouter({
+      endpointPath: '/mcp',
+      maxRequestBytes: MAX_REQUEST_BYTES,
+      allowedOrigins: [],
+      auth,
+      logger: debugLogger,
+      onMcpPost: () => ({ status: 204 }),
+    });
+
+    const res = await invoke(
+      listener,
+      {
+        Authorization: 'Bearer good-token',
+        'MCP-Session-Id': 'session-123',
+        'MCP-Protocol-Version': '2025-11-25',
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      '{}',
+    );
+
+    expect(res.status).to.equal(204);
+    const joined = output.lines.join('\n');
+    expect(joined).to.include('http.request');
+    expect(joined).to.include('http.response');
+    expect(joined).to.not.include('good-token');
+    expect(joined).to.not.include('session-123');
   });
 });

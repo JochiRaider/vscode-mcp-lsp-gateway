@@ -10,6 +10,7 @@ export type McpPostContext = Readonly<{
   headers: Readonly<Record<string, string>>;
   bodyText: string;
   bodyBytes: number;
+  requestId?: number;
 }>;
 
 export type McpPostResult = Readonly<{
@@ -78,17 +79,59 @@ function writeEmpty(
 }
 
 export function createRouter(deps: RouterDeps): http.RequestListener {
+  let nextRequestId = 1;
   return (req, res) => {
+    const requestId = nextRequestId++;
+    const startNs = process.hrtime.bigint();
+    let requestLogged = false;
+    let responseLogged = false;
+
+    const durationMs = () => Number((process.hrtime.bigint() - startNs) / 1_000_000n);
+    const logRequest = (meta: Record<string, unknown>) => {
+      if (requestLogged) return;
+      requestLogged = true;
+      deps.logger.debug('http.request', meta);
+    };
+    const logResponse = (meta: Record<string, unknown>) => {
+      if (responseLogged) return;
+      responseLogged = true;
+      deps.logger.debug('http.response', meta);
+    };
+
     try {
       const method = (req.method ?? '').toUpperCase();
       const rawUrl = req.url ?? '';
       const pathname = rawUrl.split('?')[0] ?? '';
+      const contentType = headerValue(req.headers['content-type']);
+      const accept = headerValue(req.headers['accept']);
+      const contentLengthHeader = headerValue(req.headers['content-length']);
+      const contentLength = contentLengthHeader
+        ? Number.parseInt(contentLengthHeader, 10)
+        : undefined;
+
+      logRequest({
+        rid: requestId,
+        method,
+        path: pathname,
+        contentType: contentType ? normalizeMediaType(contentType) : undefined,
+        accept: summarizeAcceptHeader(accept),
+        contentLength:
+          typeof contentLength === 'number' && Number.isFinite(contentLength)
+            ? contentLength
+            : undefined,
+        hasAuthorization: Boolean(headerValue(req.headers['authorization'])),
+        hasSessionId: Boolean(headerValue(req.headers['mcp-session-id'])),
+        hasProtocolVersion: Boolean(headerValue(req.headers['mcp-protocol-version'])),
+        hasOrigin: Boolean(headerValue(req.headers['origin'])),
+      });
 
       if (pathname !== deps.endpointPath) {
+        logResponse({ rid: requestId, status: 404, durationMs: durationMs() });
         writeEmpty(res, 404);
         return;
       }
       if (method !== 'POST') {
+        logResponse({ rid: requestId, status: 405, durationMs: durationMs() });
         writeEmpty(res, 405, { Allow: 'POST' });
         return;
       }
@@ -96,6 +139,7 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
       // Origin allowlist enforcement (before reading body).
       const originResult = checkOrigin(req.headers, deps.allowedOrigins);
       if (!originResult.ok) {
+        logResponse({ rid: requestId, status: 403, durationMs: durationMs() });
         writeEmpty(res, 403);
         return;
       }
@@ -103,28 +147,32 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
       // Auth enforcement (before reading body).
       const authorization = headerValue(req.headers['authorization']);
       if (!deps.auth.verifyAuthorizationHeader(authorization)) {
+        logResponse({ rid: requestId, status: 401, durationMs: durationMs() });
         writeEmpty(res, 401, { 'WWW-Authenticate': 'Bearer' });
         return;
       }
 
       // Content-Type and Accept requirements.
-      const contentType = headerValue(req.headers['content-type']);
       if (!isApplicationJson(contentType)) {
+        logResponse({ rid: requestId, status: 415, durationMs: durationMs() });
         writeEmpty(res, 415);
         return;
       }
 
-      const accept = headerValue(req.headers['accept']);
       if (!acceptsRequired(accept)) {
+        logResponse({ rid: requestId, status: 406, durationMs: durationMs() });
         writeEmpty(res, 406);
         return;
       }
 
       // Pre-check Content-Length if provided.
-      const cl = headerValue(req.headers['content-length']);
-      if (cl) {
-        const n = Number.parseInt(cl, 10);
-        if (Number.isFinite(n) && n > deps.maxRequestBytes) {
+      if (contentLengthHeader) {
+        if (
+          typeof contentLength === 'number' &&
+          Number.isFinite(contentLength) &&
+          contentLength > deps.maxRequestBytes
+        ) {
+          logResponse({ rid: requestId, status: 413, durationMs: durationMs() });
           writeEmpty(res, 413);
           req.destroy();
           return;
@@ -142,6 +190,7 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
             total,
             max: deps.maxRequestBytes,
           });
+          logResponse({ rid: requestId, status: 413, durationMs: durationMs() });
           writeEmpty(res, 413);
           req.off('data', onData);
           req.off('end', onEnd);
@@ -160,6 +209,7 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
 
           if (!deps.onMcpPost) {
             deps.logger.debug('No MCP handler configured; returning 500.');
+            logResponse({ rid: requestId, status: 500, durationMs: durationMs() });
             writeEmpty(res, 500);
             return;
           }
@@ -171,6 +221,7 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
               headers: sanitizeHeaders(req.headers),
               bodyText,
               bodyBytes,
+              requestId,
             });
           } catch (err) {
             // Fail closed: unexpected handler error => 500, empty body.
@@ -178,6 +229,7 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
             deps.logger.debug('MCP handler threw; returning 500.', {
               error: err instanceof Error ? err.message : String(err),
             });
+            logResponse({ rid: requestId, status: 500, durationMs: durationMs() });
             writeEmpty(res, 500);
             return;
           }
@@ -194,13 +246,27 @@ export function createRouter(deps: RouterDeps): http.RequestListener {
 
           res.statusCode = result.status;
           res.end(shouldWriteBody ? result.bodyText : undefined);
-        })().catch(() => writeEmpty(res, 500));
+          logResponse({
+            rid: requestId,
+            status: result.status,
+            durationMs: durationMs(),
+            requestBytes: bodyBytes,
+            responseBytes: shouldWriteBody ? Buffer.byteLength(result.bodyText ?? '', 'utf8') : 0,
+          });
+        })().catch(() => {
+          logResponse({ rid: requestId, status: 500, durationMs: durationMs() });
+          writeEmpty(res, 500);
+        });
       };
 
       req.on('data', onData);
       req.on('end', onEnd);
-      req.on('error', () => writeEmpty(res, 400));
+      req.on('error', () => {
+        logResponse({ rid: requestId, status: 400, durationMs: durationMs() });
+        writeEmpty(res, 400);
+      });
     } catch {
+      logResponse({ rid: requestId, status: 500, durationMs: durationMs() });
       writeEmpty(res, 500);
     }
   };
@@ -216,4 +282,16 @@ function hasHeader(
     if (k.toLowerCase() === target) return true;
   }
   return false;
+}
+
+function summarizeAcceptHeader(acceptHeader: string | undefined): Record<string, boolean> | undefined {
+  if (!acceptHeader) return undefined;
+  const tokens = acceptHeader
+    .split(',')
+    .map((s) => normalizeMediaType(s))
+    .filter((s) => s.length > 0);
+  return {
+    hasJson: tokens.includes('application/json'),
+    hasEventStream: tokens.includes('text/event-stream'),
+  };
 }

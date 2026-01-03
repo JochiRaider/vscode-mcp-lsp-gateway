@@ -16,7 +16,7 @@ import type { Logger } from '../logging/redact.js';
 import { redactString } from '../logging/redact.js';
 import type { McpPostContext, McpPostHandler, McpPostResult } from '../server/router.js';
 import { parseJsonRpcMessage, type JsonRpcId, type JsonRpcErrorObject } from './jsonrpc.js';
-import { dispatchToolsList, dispatchToolCall } from '../tools/dispatcher.js';
+import { dispatchToolsList, dispatchToolCall, type ToolCallResult } from '../tools/dispatcher.js';
 import type { SchemaRegistry } from '../tools/schemaRegistry.js';
 import type { ToolRuntime } from '../tools/runtime/toolRuntime.js';
 import { truncateHoverToolCallResult } from '../tools/truncate.js';
@@ -94,20 +94,40 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
   return async function onMcpPost(ctx: McpPostContext): Promise<McpPostResult> {
     const bodyText = ctx.bodyText;
+    const logger = opts.logger;
+    const rid = ctx.requestId;
 
     const parsed = parseJsonRpcMessage(bodyText);
     if (!parsed.ok) {
+      logger?.debug('jsonrpc.invalid', {
+        rid,
+        reason: parsed.reason,
+        bodyBytes: ctx.bodyBytes,
+      });
       // Invalid JSON or invalid JSON-RPC envelope: transport-layer 400, empty body.
       return { status: 400 };
     }
 
     // JSON-RPC responses sent to us are accepted and ignored.
     if (parsed.message.kind === 'response') {
+      logger?.debug('jsonrpc.in', {
+        rid,
+        kind: 'response',
+        idPresent: true,
+        bodyBytes: ctx.bodyBytes,
+      });
       return { status: 202 };
     }
 
     const headers = ctx.headers;
     const method = parsed.message.msg.method;
+    logger?.debug('jsonrpc.in', {
+      rid,
+      kind: parsed.message.kind,
+      method,
+      idPresent: parsed.message.kind === 'request',
+      bodyBytes: ctx.bodyBytes,
+    });
 
     // Lifecycle / post-init model:
     // - Pre-init: only "initialize" should succeed.
@@ -334,6 +354,13 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
 
         toolName = parsedCall.name;
         const args = parsedCall.arguments;
+        const toolStart = process.hrtime.bigint();
+
+        logger?.debug('tools.call', {
+          rid,
+          tool: toolName,
+          argKeys: summarizeArgumentKeys(args),
+        });
 
         const dispatched = await dispatchToolCall(toolName, args, {
           schemaRegistry: opts.schemaRegistry,
@@ -343,7 +370,18 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
           toolRuntime: opts.toolRuntime,
         });
 
-        if (!dispatched.ok) return jsonRpcErrorResponse(req.id, dispatched.error);
+        if (!dispatched.ok) {
+          const response = jsonRpcErrorResponse(req.id, dispatched.error);
+          logger?.debug('tools.result', {
+            rid,
+            tool: toolName,
+            ok: false,
+            errorCode: extractErrorCode(dispatched.error),
+            durationMs: durationMsSince(toolStart),
+            responseBytes: response.bodyText ? utf8ByteLength(response.bodyText) : 0,
+          });
+          return response;
+        }
         const toolResult =
           toolName === 'vscode_lsp_hover'
             ? truncateHoverToolCallResult(dispatched.result, opts.maxResponseBytes, (candidate) =>
@@ -351,6 +389,16 @@ export function createMcpPostHandler(opts: CreateMcpPostHandlerOptions): McpPost
               ).result
             : dispatched.result;
         const response = jsonRpcResultResponseWithCap(req.id, toolResult, opts.maxResponseBytes);
+        logger?.debug('tools.result', {
+          rid,
+          tool: toolName,
+          ok: response.ok,
+          durationMs: durationMsSince(toolStart),
+          responseBytes: response.response.bodyText
+            ? utf8ByteLength(response.response.bodyText)
+            : 0,
+          ...(response.ok ? summarizeToolResult(toolResult) : {}),
+        });
         return response.response;
       } catch (err) {
         logUnexpectedToolError(opts.logger, toolName, err);
@@ -529,4 +577,41 @@ function redactPathLike(value: string): string {
     .replace(/(^|[\s(])[A-Za-z]:\\[^\s)]+/g, '$1[REDACTED_PATH]')
     .replace(/(^|[\s(])\\\\[^\s)]+/g, '$1[REDACTED_PATH]');
   return redacted;
+}
+
+function summarizeArgumentKeys(args: unknown): Record<string, unknown> {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return { keys: [] };
+  const keys = Object.keys(args as Record<string, unknown>).sort();
+  const limited = keys.slice(0, 20);
+  return {
+    keys: limited,
+    truncated: keys.length > limited.length,
+  };
+}
+
+function summarizeToolResult(result: ToolCallResult): Record<string, unknown> {
+  const summary: Record<string, unknown> = {};
+  const structured = result.structuredContent;
+  if (structured && typeof structured === 'object' && !Array.isArray(structured)) {
+    const rec = structured as Record<string, unknown>;
+    const arrayCounts: Record<string, number> = {};
+    for (const [k, v] of Object.entries(rec)) {
+      if (Array.isArray(v)) arrayCounts[k] = v.length;
+    }
+    if (Object.keys(arrayCounts).length > 0) summary.arrayCounts = arrayCounts;
+    const nextCursor = rec.nextCursor;
+    if (typeof nextCursor === 'string') summary.nextCursorPresent = nextCursor.length > 0;
+  }
+  return summary;
+}
+
+function extractErrorCode(err: JsonRpcErrorObject): string | undefined {
+  const data = err.data as Record<string, unknown> | undefined;
+  if (!data) return undefined;
+  const code = data.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+function durationMsSince(startNs: bigint): number {
+  return Number((process.hrtime.bigint() - startNs) / 1_000_000n);
 }
