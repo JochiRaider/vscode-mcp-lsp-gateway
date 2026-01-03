@@ -21,186 +21,239 @@ A skill is practical across repos when it:
   - stable sorting in its report (uri, start line, symbol name)
 
 ---
+
 Repo level skills
 
 .codex/
 └── skills/
-    ├── README.md                           # Overview of the skill pack
-    ├── vscode-lsp-gateway.trace.requirement-to-implementation/
-    │   ├── SKILL.md
-    │   ├── references/
-    │   │   └── example-traces.md
-    │   └── assets/
-    │       └── output-template.json
-    ├── vscode-lsp-gateway.audit.security-boundary/
-    │   ├── SKILL.md
-    │   └── references/
-    │       └── common-guard-patterns.md
-    ├── vscode-lsp-gateway.audit.determinism-and-paging/
-    │   ├── SKILL.md
-    │   └── references/
-    │       └── pagination-antipatterns.md
-    ├── vscode-lsp-gateway.audit.schema-runtime-consistency/
-    │   ├── SKILL.md
-    │   └── references/
-    │       └── schema-validation-frameworks.md
-    ├── vscode-lsp-gateway.triage.error-to-root-cause/
-    │   ├── SKILL.md
-    │   └── references/
-    │       └── error-classification-guide.md
-    └── vscode-lsp-gateway.map.feature-surface/
-        ├── SKILL.md
-        └── references/
-            └── architecture-visualization-tips.md
+├── README.md # Overview of the skill pack
+├── vscode-lsp-gateway.trace.requirement-to-implementation/
+│ ├── SKILL.md
+│ ├── references/
+│ │ └── example-traces.md
+│ └── assets/
+│ └── output-template.json
+├── vscode-lsp-gateway.audit.security-boundary/
+│ ├── SKILL.md
+│ └── references/
+│ └── common-guard-patterns.md
+├── vscode-lsp-gateway.audit.determinism-and-paging/
+│ ├── SKILL.md
+│ └── references/
+│ └── pagination-antipatterns.md
+├── vscode-lsp-gateway.audit.schema-runtime-consistency/
+│ ├── SKILL.md
+│ └── references/
+│ └── schema-validation-frameworks.md
+├── vscode-lsp-gateway.triage.error-to-root-cause/
+│ ├── SKILL.md
+│ └── references/
+│ └── error-classification-guide.md
+└── vscode-lsp-gateway.map.feature-surface/
+├── SKILL.md
+└── references/
+└── architecture-visualization-tips.md
 
+## Recommended portable skill catalog (v1, rg-first)
 
-## Recommended portable skill catalog (v1)
+### 1) `lsp-trace-requirement-to-implementation`
 
-### 1) `lsp_trace_requirement-to-implementation`
+**Concrete application:** “Where is this behavior implemented and tested?”
 
-**Concrete application:** “Where is this behavior implemented and tested?” Works for protocols, business rules, CLI flags, config defaults, error codes, etc.
+**Description (routing keywords):** Trace a requirement/spec string to code + tests using fast text search (rg) and LSP symbols/definitions/references (keywords: spec, contract, requirement, invariant, behavior, error string, test, implementation, rg, ripgrep, grep).
 
-**Description (routing keywords):** Trace a requirement/spec string to code locations and tests using workspace symbols, definitions, and references (keywords: spec, contract, requirement, behavior, invariant, test, implementation).
+**Inputs:** requirement text + 3–10 keywords (and/or exact identifiers, error strings)
 
-**Inputs:** requirement text + 3–10 keywords (or exact identifiers / error strings)
+**Procedure (rg recon → LSP confirm):**
 
-**Procedure (LSP-driven):**
+0. **Recon (rg):**
+   - If you have an **exact string** (header name, error code, flag): `rg -n -F "<literal>"`.
+   - If you have identifiers: `rg -n "\b<IdentA>\b|\b<IdentB>\b"` (regex word boundaries).
+   - If you have a doc/spec phrase: `rg -n "<phrase>" docs/ README* **/*.md` (scope to docs first).
+   - Capture **top N files** (cap: ~20–30) with the most relevant hits; prefer hits in:
+     - entrypoints (`src/`, `cmd/`, `server/`, etc.)
+     - validators/routers
+     - tests (`test/`, `__tests__/`, etc.)
 
-1. `workspaceSymbols` for each keyword; pick top candidate anchors (cap N=25).
-2. For each anchor: `definition` → open target symbol; `references` (paged) to find call sites.
-3. Use `hover` at key call sites to confirm parameter/return expectations.
-4. Produce a report:
+1. **Seed anchors (LSP):**
+   - Convert the best rg hits into **symbol-ish** keywords (function names, classes, constants).
+   - Run `workspaceSymbols` for each seed keyword; pick top candidate anchors (cap N=25 total).
+
+2. **Trace:**
+   - For each anchor: `definition` → open target symbol.
+   - `references` (paged) to find call sites / usage.
+   - Use `hover` at key call sites to confirm parameter/return expectations and any subtle contract behavior.
+
+3. **Report (bounded):**
    - “Requirement anchors” (symbols + locations)
    - “Primary implementation path” (top 5–15 nodes)
-   - “Tests / assertions” (any references under common test paths, but _don’t assume_ names—just classify by folder patterns)
+   - “Tests / assertions” (classify by folder patterns observed; do not assume naming conventions)
 
 **Output:** structured list of `(symbol, uri, range, role: spec|impl|test, notes)`.
 
-Why it’s worth shipping: it’s the most common “day-2 engineering” action in any repo.
+---
+
+### 2) `lsp-audit-security-boundary`
+
+**Concrete application:** “Prove the security gates exist and identify bypass surfaces.”
+
+**Description:** Identify and trace security enforcement points using rg + LSP (keywords: auth, authenticate, authorize, token, secret, validate, sanitize, redact, origin, csrf, permission, guard, rg, ripgrep).
+
+**Inputs:** guard keywords + optional entrypoint symbol(s) or HTTP route names
+
+**Procedure (rg recon → LSP confirm):**
+
+0. **Recon (rg) to build the “guard shortlist”:**
+   - Broad pass (scoped): `rg -n "\b(auth|authenticate|authorize|token|secret|redact|sanitize|validate|origin|csrf)\b" src/`
+   - Targeted pass for your project’s namespace conventions (examples):
+     - error codes: `rg -n "WORKSPACE_DENIED|URI_INVALID|INVALID_PARAMS|CAP_EXCEEDED"`
+     - header checks: `rg -n -F "Authorization"`, `rg -n -F "Origin"`, etc.
+
+   - From hits, extract candidate **guard functions** and **enforcement chokepoints** (router, middleware, validators).
+
+1. **Confirm guards are real guards (LSP):**
+   - `workspaceSymbols` for each candidate guard symbol; open definitions.
+   - Use `references` to enumerate enforcement sites (paged, bounded).
+
+2. **Build “bypass map”:**
+   - Follow `definition` from entrypoints into guard calls.
+   - Identify callers that appear to perform sensitive work **without** passing through guards (e.g., alternate router paths, helper entrypoints, tests that bypass).
+
+3. **Summarize as a deterministic “guard surface map”:**
+   - Guard symbol → enforced at → protects what input/output → potential bypass (with evidence locations)
+
+**Output:** deterministic guard map table with evidence locations.
 
 ---
 
-### 2) `lsp_audit_security-boundary`
+### 3) `lsp-audit-determinism-and-paging`
 
-**Concrete application:** “Prove the security gates exist and identify bypass surfaces.” Works in servers, CLIs, agents, plugins, and SDKs.
+**Concrete application:** “Does this repo’s pagination/cursor logic produce stable results?”
 
-**Description:** Identify and trace security enforcement points (authz/authn, input validation, origin/CSRF checks, path/URI gating, logging redaction) using references and definitions (keywords: auth, validate, sanitize, redact, token, secret, permission).
+**Description:** Audit determinism for list/search endpoints using rg + LSP (keywords: cursor, page, limit, offset, token, sort, stable, deterministic, dedupe, canonical, snapshot, rg).
 
-**Inputs:** a few “guard keywords” plus optional entrypoint symbol(s)
+**Inputs:** names of list/search APIs (or “cursor/page/limit”)
 
-**Procedure:**
+**Procedure (rg recon → LSP confirm):**
 
-1. Find likely guard symbols via `workspaceSymbols` (auth/validate/sanitize/redact).
-2. For each guard, `references` (paged) to see where it is enforced.
-3. Follow key call chains with `definition` to confirm _what_ is enforced (not just name-based inference).
-4. Summarize as “Guard surface map”:
-   - Guard symbol → enforced at → protects what input/output → potential bypass (callers that skip it)
+0. **Recon (rg) to find paging hotspots quickly:**
+   - `rg -n "\b(cursor|pageSize|nextCursor|limit|offset)\b" src/`
+   - `rg -n "\b(stable|deterministic|sort|dedup|canonical)\b" src/`
+   - If cursors are encoded: `rg -n "\b(base64|sha256|snapshot|opaque)\b" src/`
+   - Collect top candidate APIs and the helper modules they rely on (cursor encode/decode, sorting, stable stringify).
 
-**Output:** deterministic “guard map” table with evidence locations.
+1. **Per candidate API (LSP):**
+   - `workspaceSymbols` to locate the public surface (handler function / endpoint function).
+   - `definition` to locate implementation and paging logic.
+   - `references` to find all call sites and variants.
 
-Why it’s worth shipping: security review checklists are universal, and LSP traces are faster than manual grep.
+2. **Confirm determinism chain:**
+   - Find sort keys and dedupe keys (verify they use stable/canonical fields).
+   - Trace cursor composition/validation.
+   - Identify hard caps / error behavior for invalid cursor or too-large result sets.
 
----
-
-### 3) `lsp_audit_determinism-and-paging`
-
-**Concrete application:** “Does this repo’s pagination/cursor logic produce stable results?” Works for APIs, CLIs, listing commands, search endpoints, SDK iterators.
-
-**Description:** Audit determinism for paged or list-returning APIs: stable sort keys, dedupe keys, cursor/page token semantics, and hard caps (keywords: cursor, page, limit, offset, token, sort, stable, deterministic).
-
-**Inputs:** names of list/search functions or endpoints (or the word “cursor/page/limit”)
-
-**Procedure:**
-
-1. `workspaceSymbols` for “cursor/page/limit/sort” and likely list APIs.
-2. For each candidate list API:
-   - `definition` to locate implementation
-   - `references` to find all call sites and variants
-
-3. Confirm sorting/dedupe and cursor encode/decode paths (using `definition` chaining).
-4. Output “Paging contract summary” per API:
-   - Inputs accepted
-   - Sort key(s)
-   - Cursor/token composition
-   - Caps/limits behavior
-   - Error behavior on invalid cursor
-
-**Output:** per-API structured summary with symbol locations.
-
-Why it’s worth shipping: paging bugs are high-impact and common across ecosystems.
+**Output:** per-API structured summary: inputs accepted, sort keys, cursor semantics, caps, invalid-cursor behavior (with symbol locations).
 
 ---
 
-### 4) `lsp_audit_schema-runtime-consistency`
+### 4) `lsp-audit-schema-runtime-consistency`
 
-**Concrete application:** “Do schemas/docs/tests match what runtime actually accepts/returns?” Works for JSON-RPC, REST OpenAPI, config schemas, CLI flag schemas, protobuf/IDL, etc.
+**Concrete application:** “Do schemas/docs/tests match runtime accepts/returns?”
 
-**Description:** Cross-check schema definitions against runtime validation/serialization code and tests using symbol tracing (keywords: schema, validate, parse, serialize, request, response, contract).
+**Description:** Cross-check schema definitions against runtime validation and serialization using rg + LSP (keywords: schema, validate, parse, serialize, request, response, contract, ajv, zod, openapi, json schema, rg).
 
-**Inputs:** schema entry name(s) or schema-related keywords; optional “tool/method/endpoint name”
+**Inputs:** schema entry names or schema keywords; optional method/endpoint/tool name
 
-**Procedure:**
+**Procedure (rg recon → LSP confirm):**
 
-1. Locate schema definitions (often JSON/TS types). Use `workspaceSymbols` for “schema/validate/ajv/zod/joi/openapi”.
-2. Trace from schema → validator usage sites via `references`.
-3. Trace runtime handlers/serializers back to schema types via `references` and `definition`.
-4. Identify drift:
+0. **Recon (rg) to stitch the schema ↔ runtime graph:**
+   - Locate schema files / validators: `rg -n "\b(schema|validate|validator|ajv|zod|joi|openapi)\b" src/ schemas/ docs/`
+   - If you know a tool/method name: `rg -n -F "<toolOrMethodName>" src/ schemas/ docs/ test/`
+   - Extract:
+     - schema definition locations
+     - validator instantiation locations
+     - handler/dispatcher locations
+
+1. **LSP trace for correctness (avoid name-based inference):**
+   - From schema type/definition symbols: `references` to find usage sites.
+   - From handler surface: `definition`/`references` back to schema types and validators.
+
+2. **Identify drift:**
    - fields present in runtime but absent in schema (or vice versa)
    - tests missing for required fields / error mapping
 
-**Output:** “drift findings” list with `(field/symbol, expected, observed, evidence)`.
-
-Why it’s worth shipping: most repos that evolve quickly accumulate schema/runtime mismatch.
+**Output:** drift findings list with `(field/symbol, expected, observed, evidence)`.
 
 ---
 
-### 5) `lsp_triage_error-to-root-cause`
+### 5) `lsp-triage-error-to-root-cause`
 
-**Concrete application:** “Given an error message or diagnostic, find the throwing site, the callers, and the likely root cause.” Works for runtime exceptions, log strings, and type errors.
+**Concrete application:** “Given an error message, find throwing site, callers, likely fix.”
 
-**Description:** Triage an error/diagnostic by locating its origin, tracing callers, and identifying the failing contract/type boundary (keywords: error, exception, fails, stack, diagnostic, TypeScript error, compile error).
+**Description:** Triage an error/diagnostic using rg to locate origin sites and LSP to trace call chains and type boundaries (keywords: error, exception, fails, stack, diagnostic, TypeScript error, compile error, rg, ripgrep).
 
-**Inputs:** error text or diagnostic snippet; optional file and line.
+**Inputs:** error text/diagnostic snippet; optional file/line
 
-**Procedure:**
+**Procedure (rg recon → LSP confirm):**
 
-1. If file/line is provided: start there; otherwise use `workspaceSymbols` with error-string keywords.
-2. `definition` at the failing usage site; then `references` to find how it’s called.
-3. Use `hover` to capture expected vs actual type/params at the boundary.
-4. Output:
-   - origin site(s)
-   - top call chain slice (bounded)
-   - “likely fix vectors” (e.g., wrong type passed, missing null check, wrong overload)
+0. **Recon (rg) (preferred when you have an error string):**
+   - Exact message: `rg -n -F "<exact error text>"`
+   - If error codes / enums: `rg -n "\b<MODULE>/(NOT_FOUND|INVALID_PARAMS|CAP_EXCEEDED)\b"`
+   - If stack shows function names: `rg -n "\b<functionName>\b" src/ test/`
 
-**Output:** short, structured incident note with evidence locations.
+1. **Start point (LSP):**
+   - If file/line: start there; otherwise jump to best rg hit and use `hover` to confirm context.
+   - Use `definition` at the failing site and `references` to find callers.
 
-Why it’s worth shipping: this is the single most common “real-world” use of language intelligence.
+2. **Boundary capture:**
+   - Use `hover` to record expected vs actual types/params.
+   - Identify the smallest contract boundary where “wrong thing crosses” (wrong type, missing guard, wrong overload, missing normalization).
+
+**Output:** short structured incident note: origin site(s), bounded call chain slice, likely fix vectors, evidence locations.
 
 ---
 
-### 6) `lsp_map_feature-surface`
+### 6) `lsp-map-feature-surface`
 
-**Concrete application:** “Give me the map of this subsystem: public entrypoints, key types, and where they’re used.” Works for onboarding, reviews, and refactors.
+**Concrete application:** “Map a subsystem: entrypoints, core types, hotspots.”
 
-**Description:** Build a bounded feature map for a subsystem: key symbols, their definitions, and reference hotspots (keywords: overview, map, architecture, entrypoint, module, subsystem).
+**Description:** Build a bounded feature map using rg to seed the surface area and LSP to rank symbols by usage (keywords: overview, map, architecture, entrypoint, module, subsystem, surface, export, public API, rg).
 
-**Inputs:** a query string (module/feature name) + optional file/folder focus.
+**Inputs:** query string (module/feature name) + optional file/folder focus
 
-**Procedure:**
+**Procedure (rg recon → LSP confirm):**
 
-1. `workspaceSymbols` for the feature query; take top N symbols.
-2. For each, pull `definition`, then `references` count (paged but bounded).
-3. Rank symbols by “reference density” as a proxy for importance.
-4. Output:
+0. **Recon (rg) to find the “surface” quickly:**
+   - Find mentions of the feature/module name: `rg -n "\b<feature>\b" src/`
+   - If the repo has barrel exports / public API modules: `rg -n "\b(export\s+(\{|\*|class|function|interface|type))\b" src/`
+   - Identify candidate “public surface” files (index.ts, public.ts, api.ts, commands, router modules).
+
+1. **LSP map:**
+   - `workspaceSymbols` for the feature query; take top N symbols.
+   - For each: `definition`, then `references` count (paged, bounded).
+   - Rank by “reference density” (deterministic tie-breakers: uri/range/name).
+
+2. **Output:**
    - top entrypoints
    - core types/interfaces
    - hotspot files
 
-**Output:** deterministic “feature map” list and hotspot summary.
-
-Why it’s worth shipping: it’s the fastest way to understand unfamiliar code without bespoke repo knowledge.
+**Output:** deterministic feature map list + hotspot summary.
 
 ---
+
+## Portable “rg recon” rules you can reuse across all skills
+
+- Prefer **literal** searches when you can (`rg -F`) to avoid regex surprises.
+- Bound the blast radius:
+  - scope paths (`src/`, `test/`, `docs/`) before whole-repo scans
+  - rely on `.gitignore` (rg does by default)
+  - cap results by selecting only the top ~20–30 files/hits for deeper LSP tracing
+
+- Use rg outputs as **seeds**, not proof:
+  - rg finds strings/comments/docs/tests; LSP confirms semantics (symbol identity, call edges, types).
+
+If you want, I can also rewrite the **single-line `description` fields** to be maximally non-overlapping (routing-safe) while adding “rg/grep/ripgrep” keywords in a way that doesn’t cause the skills to cannibalize each other.
 
 ## How your original A–D list maps
 
@@ -242,10 +295,13 @@ When you package these in your GitHub repo:
 - Identifying potential vulnerabilities: "Find endpoints that might bypass input validation."
 
 ### IDE context
+
 If running in Codex IDE and specific files are open, the skill will prioritize analyzing guard usage within those files first before expanding to workspace-wide analysis.
 
-### CLI context  
+### CLI context
+
 If running in Codex CLI, you should specify the module or subsystem to analyze using path hints: "Audit security boundaries in @src/api" or provide entrypoint symbols explicitly: "Trace guards from the createUser function."
+
 ```
 
 This pattern acknowledges that the IDE provides richer ambient context while the CLI requires more explicit scoping, and it helps users understand how to get optimal results in each environment.
@@ -260,7 +316,7 @@ For example, for `lsp.map.feature-surface`:
 
 **Should trigger:**
 - "Give me an overview of the authentication subsystem"
-- "Map the key entry points for the payment processing module"  
+- "Map the key entry points for the payment processing module"
 - "What are the main types and interfaces in the API layer?"
 
 **Should not trigger:**

@@ -1,10 +1,10 @@
 ---
 name: lsp-audit-security-boundary
-description: "Map and verify security enforcement points using LSP navigation (symbols, references, definitions) to prove authn/authz, validation, origin checks, URI gating, and redaction. Use for security boundary audits, guard-rail verification, and bypass surface analysis (keywords: auth, validate, sanitize, redact, token, secret, permission). Produces a deterministic guard map table with evidence locations."
+description: 'Map and verify security enforcement points using LSP navigation (symbols, references, definitions) to prove authn/authz, validation, origin checks, URI gating, and redaction. Use for security boundary audits, guard-rail verification, and bypass surface analysis (keywords: auth, validate, sanitize, redact, token, secret, permission). Produces a deterministic guard map table with evidence locations.'
 compatibility: Works in Codex CLI and Codex IDE. Requires LSP tools and read access only. No network required.
 metadata:
   owner: askahn
-  version: "0.1"
+  version: '0.1'
   maturity: draft
   short-description: LSP-based security guard map
 license: Proprietary
