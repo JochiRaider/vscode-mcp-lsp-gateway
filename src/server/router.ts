@@ -284,7 +284,9 @@ function hasHeader(
   return false;
 }
 
-function summarizeAcceptHeader(acceptHeader: string | undefined): Record<string, boolean> | undefined {
+function summarizeAcceptHeader(
+  acceptHeader: string | undefined,
+): Record<string, boolean> | undefined {
   if (!acceptHeader) return undefined;
   const tokens = acceptHeader
     .split(',')

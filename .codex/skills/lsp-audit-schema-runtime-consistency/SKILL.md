@@ -1,6 +1,6 @@
 ---
 name: lsp-audit-schema-runtime-consistency
-description: "Audit schema vs runtime vs tests for consistency by tracing validation/serialization paths and documenting drift. Use when reviewing JSON schema/IDL/OpenAPI/Ajv/Zod/CLI/config contracts, tool inputs/outputs, or protocol changes (keywords: schema, validate, ajv, zod, openapi, contract, parse, serialize, request, response, drift)."
+description: 'Audit schema vs runtime vs tests for consistency by tracing validation/serialization paths and documenting drift. Use when reviewing JSON schema/IDL/OpenAPI/Ajv/Zod/CLI/config contracts, tool inputs/outputs, or protocol changes (keywords: schema, validate, ajv, zod, openapi, contract, parse, serialize, request, response, drift).'
 ---
 
 # Lsp Audit Schema Runtime Consistency

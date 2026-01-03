@@ -17,10 +17,12 @@ Produce an implementation trace from requirement text to concrete symbols, call 
 ## Inputs
 
 Required:
+
 - Provide requirement/spec text (exact string or paraphrase).
 - Provide 3 to 10 keywords or exact identifiers/error strings.
 
 Optional:
+
 - Provide target paths or module names (if the workspace is large).
 - Provide output format preferences (e.g., short vs detailed trace).
 
@@ -46,6 +48,7 @@ Return a structured report of anchors, implementation path, and tests as a list 
 ## Verification
 
 Confirm that:
+
 - At least one anchor was resolved to a concrete symbol.
 - Implementation path includes 5 to 15 nodes with stable, deduped locations.
 - Tests are identified by folder patterns, not assumptions.
