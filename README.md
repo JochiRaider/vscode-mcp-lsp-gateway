@@ -152,3 +152,9 @@ See `docs/SECURITY.md` for the full threat model and testable invariants.
 ## Development
 
 See `AGENTS.md` for repository workflow guidance and quality gates.
+
+## Packaging
+
+- `npm run package` bundles runtime dependencies into `dist/extension.js` (only `vscode` stays external).
+- `npm run package:vsix` uses `--no-dependencies`, so the VSIX must run without `node_modules`.
+- `test/unit/bundle.test.ts` guards against runtime imports for bundled deps (e.g., `fast-stable-stringify`).
