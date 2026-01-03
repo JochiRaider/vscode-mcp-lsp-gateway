@@ -1,6 +1,10 @@
 ---
 name: lsp-audit-determinism-and-paging
-description: Audit determinism for list/search endpoints using rg + VS Code LSP to locate cursor/page/limit/sort logic, verify stable sort and dedupe keys, cursor semantics, caps, and error handling. Use for pagination, cursor tokens, list/search APIs, or LSP list tools (keywords: cursor, page, limit, offset, token, sort, stable, deterministic, dedupe, canonical, snapshot, rg). Produces per-API summaries with symbol locations.
+description: >-
+  Audit determinism for list/search endpoints using rg + VS Code LSP to locate cursor/page/limit/sort logic,
+  verify stable sort and dedupe keys, cursor semantics, caps, and error handling. Use for pagination, cursor
+  tokens, list/search APIs, or LSP list tools. Keywords include cursor, page, limit, offset, token, sort,
+  stable, deterministic, dedupe, canonical, snapshot, and rg.
 ---
 
 # LSP Audit: Determinism and Paging

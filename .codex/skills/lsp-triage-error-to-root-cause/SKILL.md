@@ -1,6 +1,11 @@
 ---
 name: lsp-triage-error-to-root-cause
-description: Triage error messages, diagnostics, exceptions, or TypeScript/compile errors using rg + VS Code LSP to locate origin sites, trace callers, and identify the likely contract or type boundary. Use when given an error string, log line, or diagnostic (optionally with file/line) and you need a short root-cause note with evidence locations. Keywords: error, exception, fails, stack, diagnostic, TypeScript error, compile error, rg, ripgrep.
+description: >-
+  Triage error messages, diagnostics, exceptions, or TypeScript/compile errors using rg + VS Code LSP to locate
+  origin sites, trace callers, and identify the likely contract or type boundary. Use when given an error
+  string, log line, or diagnostic (optionally with file/line) and you need a short root-cause note with
+  evidence locations. Keywords include error, exception, fails, stack, diagnostic, TypeScript error, compile
+  error, rg, and ripgrep.
 ---
 
 # LSP Triage Error To Root Cause

@@ -1,6 +1,11 @@
 ---
 name: lsp-trace-requirement-to-implementation
-description: Trace a requirement/spec string or error text to code + tests using rg plus VS Code LSP (symbols/definition/references/hover). Use for questions like "where is this behavior implemented and tested?" and requests involving spec/contract/invariant text, headers, error codes, or tool behaviors. Keywords: requirement, spec, contract, behavior, invariant, error, test, implementation, rg, ripgrep, grep.
+description: >-
+  Trace a requirement/spec string or error text to code + tests using rg plus VS Code LSP
+  (symbols/definition/references/hover). Use for questions like "where is this behavior implemented and
+  tested?" and requests involving spec/contract/invariant text, headers, error codes, or tool behaviors.
+  Keywords include requirement, spec, contract, behavior, invariant, error, test, implementation, rg, ripgrep,
+  and grep.
 ---
 
 # Lsp Trace Requirement To Implementation

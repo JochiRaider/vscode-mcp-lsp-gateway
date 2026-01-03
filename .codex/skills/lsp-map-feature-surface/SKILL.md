@@ -1,6 +1,9 @@
 ---
 name: lsp-map-feature-surface
-description: Build a bounded feature map using rg + VS Code LSP to seed surface area and rank symbols by usage. Use when asked to map a module/feature/subsystem, identify public entrypoints, or find usage hotspots (keywords: overview, map, architecture, entrypoint, module, subsystem, surface, export, public API, rg).
+description: >-
+  Build a bounded feature map using rg + VS Code LSP to seed surface area and rank symbols by usage. Use when
+  asked to map a module/feature/subsystem, identify public entrypoints, or find usage hotspots. Keywords
+  include overview, map, architecture, entrypoint, module, subsystem, surface, export, public API, and rg.
 ---
 
 # Lsp Map Feature Surface

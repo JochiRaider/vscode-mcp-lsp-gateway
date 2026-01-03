@@ -1,6 +1,10 @@
 ---
 name: lsp-audit-security-boundary
-description: Identify and trace security enforcement points using rg + VS Code LSP to prove authn/authz, validation, origin checks, URI gating, and redaction, and to surface potential bypasses. Use for security boundary audits and guard-rail verification (keywords: auth, authenticate, authorize, token, secret, validate, sanitize, redact, origin, csrf, permission, guard, rg, ripgrep). Output a deterministic guard map with evidence locations.
+description: >-
+  Identify and trace security enforcement points using rg + VS Code LSP to prove authn/authz, validation,
+  origin checks, URI gating, and redaction, and to surface potential bypasses. Use for security boundary
+  audits and guard-rail verification. Keywords include auth, authenticate, authorize, token, secret, validate,
+  sanitize, redact, origin, csrf, permission, guard, rg, and ripgrep.
 ---
 
 # Lsp Audit Security Boundary
