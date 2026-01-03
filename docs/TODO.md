@@ -21,10 +21,42 @@ A skill is practical across repos when it:
   - stable sorting in its report (uri, start line, symbol name)
 
 ---
+Repo level skills
+
+.codex/
+└── skills/
+    ├── README.md                           # Overview of the skill pack
+    ├── vscode-lsp-gateway.trace.requirement-to-implementation/
+    │   ├── SKILL.md
+    │   ├── references/
+    │   │   └── example-traces.md
+    │   └── assets/
+    │       └── output-template.json
+    ├── vscode-lsp-gateway.audit.security-boundary/
+    │   ├── SKILL.md
+    │   └── references/
+    │       └── common-guard-patterns.md
+    ├── vscode-lsp-gateway.audit.determinism-and-paging/
+    │   ├── SKILL.md
+    │   └── references/
+    │       └── pagination-antipatterns.md
+    ├── vscode-lsp-gateway.audit.schema-runtime-consistency/
+    │   ├── SKILL.md
+    │   └── references/
+    │       └── schema-validation-frameworks.md
+    ├── vscode-lsp-gateway.triage.error-to-root-cause/
+    │   ├── SKILL.md
+    │   └── references/
+    │       └── error-classification-guide.md
+    └── vscode-lsp-gateway.map.feature-surface/
+        ├── SKILL.md
+        └── references/
+            └── architecture-visualization-tips.md
+
 
 ## Recommended portable skill catalog (v1)
 
-### 1) `lsp.trace.requirement-to-implementation`
+### 1) `lsp_trace_requirement-to-implementation`
 
 **Concrete application:** “Where is this behavior implemented and tested?” Works for protocols, business rules, CLI flags, config defaults, error codes, etc.
 
@@ -48,7 +80,7 @@ Why it’s worth shipping: it’s the most common “day-2 engineering” action
 
 ---
 
-### 2) `lsp.audit.security-boundary`
+### 2) `lsp_audit_security-boundary`
 
 **Concrete application:** “Prove the security gates exist and identify bypass surfaces.” Works in servers, CLIs, agents, plugins, and SDKs.
 
@@ -70,7 +102,7 @@ Why it’s worth shipping: security review checklists are universal, and LSP tra
 
 ---
 
-### 3) `lsp.audit.determinism-and-paging`
+### 3) `lsp_audit_determinism-and-paging`
 
 **Concrete application:** “Does this repo’s pagination/cursor logic produce stable results?” Works for APIs, CLIs, listing commands, search endpoints, SDK iterators.
 
@@ -99,7 +131,7 @@ Why it’s worth shipping: paging bugs are high-impact and common across ecosyst
 
 ---
 
-### 4) `lsp.audit.schema-runtime-consistency`
+### 4) `lsp_audit_schema-runtime-consistency`
 
 **Concrete application:** “Do schemas/docs/tests match what runtime actually accepts/returns?” Works for JSON-RPC, REST OpenAPI, config schemas, CLI flag schemas, protobuf/IDL, etc.
 
@@ -122,7 +154,7 @@ Why it’s worth shipping: most repos that evolve quickly accumulate schema/runt
 
 ---
 
-### 5) `lsp.triage.error-to-root-cause`
+### 5) `lsp_triage_error-to-root-cause`
 
 **Concrete application:** “Given an error message or diagnostic, find the throwing site, the callers, and the likely root cause.” Works for runtime exceptions, log strings, and type errors.
 
@@ -146,7 +178,7 @@ Why it’s worth shipping: this is the single most common “real-world” use o
 
 ---
 
-### 6) `lsp.map.feature-surface`
+### 6) `lsp_map_feature-surface`
 
 **Concrete application:** “Give me the map of this subsystem: public entrypoints, key types, and where they’re used.” Works for onboarding, reviews, and refactors.
 
@@ -174,15 +206,15 @@ Why it’s worth shipping: it’s the fastest way to understand unfamiliar code 
 
 Your four are absolutely viable as portable skills with small naming/scope tweaks:
 
-- **A) contract-to-impl trace** → keep (rename to `lsp.trace.requirement-to-implementation`)
-- **B) security boundary audit** → keep (`lsp.audit.security-boundary`)
-- **C) determinism & paging audit** → keep (`lsp.audit.determinism-and-paging`)
-- **D) schema ↔ runtime consistency** → keep (`lsp.audit.schema-runtime-consistency`)
+- **A) contract-to-impl trace** → keep (rename to `lsp_trace_requirement-to-implementation`)
+- **B) security boundary audit** → keep (`lsp_audit_security-boundary`)
+- **C) determinism & paging audit** → keep (`lsp_audit_determinism-and-paging`)
+- **D) schema ↔ runtime consistency** → keep (`lsp_audit_schema-runtime-consistency`)
 
 Add two “real-world daily drivers”:
 
-- `lsp.triage.error-to-root-cause`
-- `lsp.map.feature-surface`
+- `lsp_triage_error-to-root-cause`
+- `lsp_map_feature-surface`
 
 That gives you a balanced, credible, portable “starter pack” of skills.
 
@@ -202,3 +234,58 @@ When you package these in your GitHub repo:
 
 - Standardize outputs to a simple schema (so users can compare results across skills):
   - `findings[]: {category, symbol, uri, range, evidence, severity, notes}`
+
+## When to use
+
+- Investigating security enforcement: "Where are authentication checks enforced in the API layer?"
+- Security review preparation: "Map all authorization boundary checks before the audit."
+- Identifying potential vulnerabilities: "Find endpoints that might bypass input validation."
+
+### IDE context
+If running in Codex IDE and specific files are open, the skill will prioritize analyzing guard usage within those files first before expanding to workspace-wide analysis.
+
+### CLI context  
+If running in Codex CLI, you should specify the module or subsystem to analyze using path hints: "Audit security boundaries in @src/api" or provide entrypoint symbols explicitly: "Trace guards from the createUser function."
+```
+
+This pattern acknowledges that the IDE provides richer ambient context while the CLI requires more explicit scoping, and it helps users understand how to get optimal results in each environment.
+
+## Testing and Validation Strategy
+
+Before finalizing these skills, you should create a testing protocol that validates each skill against the quality checklist from the best practices guide. Here's a concrete testing approach:
+
+For each skill, write three test scenarios that should trigger it and three that should not. Run these through Codex and observe the routing behavior. If you find inconsistent triggering, that's a signal that the description needs keyword adjustments or boundary clarifications.
+
+For example, for `lsp.map.feature-surface`:
+
+**Should trigger:**
+- "Give me an overview of the authentication subsystem"
+- "Map the key entry points for the payment processing module"  
+- "What are the main types and interfaces in the API layer?"
+
+**Should not trigger:**
+- "Add logging to the authentication functions" (this is modification, not mapping)
+- "Why is the payment processing slow?" (this is performance analysis, not surface mapping)
+- "Refactor the API layer to use async/await" (this is transformation, not discovery)
+
+Document these test cases in a `docs/testing/skill-routing-tests.md` file so that future maintainers can validate behavior as the skills evolve.
+
+## Packaging and Documentation Strategy
+
+Your skills should ship with a three-tier documentation structure:
+
+**Tier 1: Quick reference** (in each SKILL.md's summary field)
+A single sentence capturing the core use case: "Maps requirement text to implementation and test locations."
+
+**Tier 2: User-facing guide** (in a `docs/skills-guide.md`)
+A friendly explanation of when to use each skill with real-world scenarios and example prompts. This is where you tell the story of how these skills solve actual engineering problems.
+
+**Tier 3: Implementation details** (in each SKILL.md's body)
+The full procedure, prerequisites, failure modes, and technical specifications. This is for power users who want to understand exactly what's happening.
+
+This structure lets users progressively discover depth as they need it, which aligns perfectly with how the skills system itself uses progressive disclosure.
+
+## Repository Structure Recommendation
+
+Based on the best practices guide and your codebase, here's how I'd structure the skills in your repository:
+```
