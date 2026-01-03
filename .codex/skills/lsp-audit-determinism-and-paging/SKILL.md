@@ -1,19 +1,13 @@
 ---
 name: lsp-audit-determinism-and-paging
-description: Audit determinism for paged or list-returning APIs by locating cursor/page/limit/sort logic, verifying stable sort and dedupe keys, cursor semantics, caps, and error handling. Use for pagination, cursor tokens, list/search endpoints, LSP list tools. Produces per-API paging contract summaries with symbol locations.
+description: Audit determinism for list/search endpoints using rg + VS Code LSP to locate cursor/page/limit/sort logic, verify stable sort and dedupe keys, cursor semantics, caps, and error handling. Use for pagination, cursor tokens, list/search APIs, or LSP list tools (keywords: cursor, page, limit, offset, token, sort, stable, deterministic, dedupe, canonical, snapshot, rg). Produces per-API summaries with symbol locations.
 ---
 
 # LSP Audit: Determinism and Paging
 
 ## Purpose
 
-Deliver a deterministic paging contract audit for list/search APIs, including stable sort, dedupe, cursor composition, caps, and invalid-cursor behavior, with symbol locations.
-
-## When to use
-
-- Auditing pagination/cursor stability or determinism
-- Reviewing list/search endpoints (cursor/page/limit/token/sort)
-- Checking LSP list-like tools for stable ordering and caps
+Deliver a deterministic paging contract audit for list/search APIs using rg recon followed by LSP confirmation.
 
 ## Inputs
 
@@ -30,24 +24,22 @@ Optional:
 
 - Per-API paging contract summary covering inputs, sort keys, cursor composition, caps/limits, invalid-cursor errors, and symbol locations
 
-## Prerequisites
+## Procedure (rg recon -> LSP confirm)
 
-System requirements:
-
-- Access to the repo and LSP tool surface (workspace symbols, definition, references)
-
-Permissions required:
-
-- Read-only access to source files
-
-## Procedure
-
-1. Find candidate list/search APIs by running `workspaceSymbols` for: cursor, page, limit, token, sort, list, search.
-2. For each candidate API, use `definition` to locate the implementation entrypoint.
-3. Use `references` to discover variants, call sites, and cursor encode/decode helpers.
-4. Trace sorting and dedupe paths; confirm stable sort keys and deterministic ordering.
-5. Identify caps (max items/bytes/timeouts) and invalid cursor error behavior.
-6. Produce a paging contract summary per API with file paths and symbol locations.
+1. Recon with rg to find paging hotspots:
+   - `rg -n "\\b(cursor|pageSize|nextCursor|limit|offset)\\b" src/`
+   - `rg -n "\\b(stable|deterministic|sort|dedup|canonical)\\b" src/`
+   - If cursors are encoded: `rg -n "\\b(base64|sha256|snapshot|opaque)\\b" src/`
+   - Collect top candidate APIs and helper modules (cursor encode/decode, sorting, stable stringify).
+2. For each candidate API (LSP):
+   - `workspaceSymbols` to locate the public surface (handler or endpoint function).
+   - `definition` to locate implementation and paging logic.
+   - `references` to find call sites and variants.
+3. Confirm determinism chain:
+   - Identify sort keys and dedupe keys; verify stable/canonical fields.
+   - Trace cursor composition and validation.
+   - Identify hard caps and invalid-cursor error behavior.
+4. Produce a per-API summary with symbol locations.
 
 ## Verification
 

@@ -1,25 +1,32 @@
 ---
 name: lsp-triage-error-to-root-cause
-description: Triage error messages, diagnostics, exceptions, or TypeScript/compile errors by locating the origin site, tracing callers with LSP, and identifying the likely contract or type boundary; use when given an error string, log line, or diagnostic (optionally with file/line) and you need a short root-cause note with evidence locations.
+description: Triage error messages, diagnostics, exceptions, or TypeScript/compile errors using rg + VS Code LSP to locate origin sites, trace callers, and identify the likely contract or type boundary. Use when given an error string, log line, or diagnostic (optionally with file/line) and you need a short root-cause note with evidence locations. Keywords: error, exception, fails, stack, diagnostic, TypeScript error, compile error, rg, ripgrep.
 ---
 
 # LSP Triage Error To Root Cause
 
 ## Overview
 
-Locate the throwing or failing site, follow the call chain to the nearest contract boundary, and summarize likely fix vectors with evidence.
+Locate the throwing or failing site via rg, follow the call chain to the nearest contract boundary, and summarize likely fix vectors with evidence.
 
 ## Inputs
 
 - Error text or diagnostic snippet
 - Optional file and line for a direct starting point
 
-## Workflow
+## Workflow (rg recon -> LSP confirm)
 
-1. If file/line is provided, start there. Otherwise, use `vscode_lsp_workspaceSymbols` with keywords from the error text (symbol names, function names, error codes).
-2. At the suspected failing usage site, run `vscode_lsp_definition` to jump to the callee or symbol definition.
-3. Use `vscode_lsp_references` on that symbol to trace how it is called. Keep the call chain slice bounded (top 3-6 hops) and prefer the most relevant callers.
-4. Use `vscode_lsp_hover` at the boundary to capture expected vs actual types, parameters, or contracts.
+1. Recon with rg (preferred when you have an error string):
+   - Exact message: `rg -n -F "<exact error text>"`
+   - Error codes/enums: `rg -n "\\b<MODULE>/(NOT_FOUND|INVALID_PARAMS|CAP_EXCEEDED)\\b"`
+   - Stack function names: `rg -n "\\b<functionName>\\b" src/ test/`
+2. Start point (LSP):
+   - If file/line is provided, start there; otherwise jump to the best rg hit and use `vscode_lsp_hover` to confirm context.
+   - Use `vscode_lsp_definition` at the failing site to jump to the callee or symbol definition.
+3. Use `vscode_lsp_references` to trace callers. Keep the call chain slice bounded (top 3-6 hops) and prefer the most relevant callers.
+4. Boundary capture:
+   - Use `vscode_lsp_hover` to record expected vs actual types/params.
+   - Identify the smallest contract boundary where the wrong thing crosses.
 5. If the error is a type/diagnostic, confirm with `vscode_lsp_diagnostics_document` or `vscode_lsp_diagnostics_workspace` to ensure the failure is still present.
 6. Summarize the likely root cause and fix vectors with evidence locations.
 

@@ -1,74 +1,61 @@
 ---
 name: lsp-trace-requirement-to-implementation
-description: Trace a requirement/spec string to code locations and tests using VS Code LSP tools (symbols, definitions, references, hover). Use for questions like "where is this behavior implemented and tested?" (keywords: requirement, spec, contract, behavior, invariant, error code, test, implementation).
+description: Trace a requirement/spec string or error text to code + tests using rg plus VS Code LSP (symbols/definition/references/hover). Use for questions like "where is this behavior implemented and tested?" and requests involving spec/contract/invariant text, headers, error codes, or tool behaviors. Keywords: requirement, spec, contract, behavior, invariant, error, test, implementation, rg, ripgrep, grep.
 ---
 
 # Lsp Trace Requirement To Implementation
 
 ## Purpose
 
-Produce an implementation trace from requirement text to concrete symbols, call sites, and tests using LSP-driven navigation.
-
-## When to use
-
-- Use when you have a spec/contract statement or error string and need to locate the implementation and tests.
-- Use when you need a concise, evidence-backed trace through symbols, definitions, and references.
+Trace a requirement/spec statement to concrete implementation symbols and tests using rg recon first, then LSP navigation.
 
 ## Inputs
 
-Required:
+Provide:
 
-- Provide requirement/spec text (exact string or paraphrase).
-- Provide 3 to 10 keywords or exact identifiers/error strings.
+- Requirement or spec text (exact string or paraphrase).
+- 3 to 10 keywords or exact identifiers/error strings.
 
 Optional:
 
-- Provide target paths or module names (if the workspace is large).
-- Provide output format preferences (e.g., short vs detailed trace).
+- Paths/modules to scope search when the repo is large.
+- Output detail preference (short vs detailed trace).
 
-## Outputs
+## Output format
 
-Return a structured report of anchors, implementation path, and tests as a list of:
+Return a structured list of:
+
 `(symbol, uri, range, role: spec|impl|test, notes)`
 
-## Procedure
+## Procedure (rg recon -> LSP confirm)
 
-1. If requirement text or keywords are missing, ask for them before proceeding.
-2. If running in CLI and the target area is unclear, ask for 1 to 3 candidate paths or modules.
-3. Use `workspaceSymbols` for each keyword and collect top candidate anchors (cap around 25 total).
-4. For each anchor, resolve `definition` and open the target symbol.
-5. Run `references` (paged) to find call sites; include declaration only when needed.
-6. Use `hover` at key call sites to confirm parameter/return expectations or error semantics.
-7. Classify findings into roles:
-   - `spec`: locations of requirements or documented behavior
+1. Ask for missing requirement text or keywords before proceeding.
+2. Recon with rg:
+   - Exact string: `rg -n -F "<literal>"`
+   - Identifiers: `rg -n "\\b<IdentA>\\b|\\b<IdentB>\\b"`
+   - Doc/spec phrase: `rg -n "<phrase>" docs/ README* **/*.md`
+   - Capture top ~20 to 30 relevant hits; prefer entrypoints and validators in `src/` and tests in `test/`.
+3. Convert best rg hits into symbol-ish seeds (function/class/constant names).
+4. Run `workspaceSymbols` for each seed and choose top candidate anchors (cap 25 total).
+5. For each anchor, use `definition` to open the target symbol.
+6. Use `references` (paged) to find call sites; include declaration only when needed.
+7. Use `hover` on key call sites to confirm parameter/return expectations and subtle behavior.
+8. Classify findings:
+   - `spec`: requirement/docs locations
    - `impl`: primary implementation path
-   - `test`: references under test folders
-8. Produce the structured report and note any gaps or ambiguous matches.
+   - `test`: locations under test folders
+9. Produce the structured report and note gaps or ambiguous matches.
 
 ## Verification
 
 Confirm that:
 
-- At least one anchor was resolved to a concrete symbol.
-- Implementation path includes 5 to 15 nodes with stable, deduped locations.
-- Tests are identified by folder patterns, not assumptions.
+- At least one anchor resolved to a concrete symbol.
+- Implementation path has 5 to 15 nodes with stable, deduped locations.
+- Tests are identified via folder patterns, not assumptions.
 
 ## Failure modes
 
-- If no symbol matches, ask for tighter keywords or exact identifiers.
-- If too many matches, ask for narrowing paths or specific modules.
-- If LSP returns empty references, fall back to nearby symbols or confirm workspace indexing.
-
-## Examples
-
-### Should trigger
-
-- "Where is the 'local-only bind' requirement implemented and tested?"
-- "Trace error code MCP-401 to implementation and tests."
-- "Find where the 'maxItemsPerPage' cap is enforced."
-
-### Should NOT trigger
-
-- "Refactor this file for readability."
-- "Explain how JSON-RPC works."
-- "Write unit tests for this function."
+- No symbol matches: ask for tighter keywords or exact identifiers.
+- Too many matches: ask for narrower paths or specific modules.
+- Empty references: fall back to nearby symbols or confirm workspace indexing.

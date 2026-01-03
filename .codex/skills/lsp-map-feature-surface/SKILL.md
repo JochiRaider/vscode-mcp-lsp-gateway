@@ -1,17 +1,23 @@
 ---
 name: lsp-map-feature-surface
-description: Build a bounded feature map for a subsystem by querying LSP workspace symbols, resolving definitions, and counting references to rank entrypoints, core types, and hotspot files. Use when asked to map a module/feature/subsystem, identify public entrypoints, or find usage hotspots for onboarding, reviews, or refactors.
+description: Build a bounded feature map using rg + VS Code LSP to seed surface area and rank symbols by usage. Use when asked to map a module/feature/subsystem, identify public entrypoints, or find usage hotspots (keywords: overview, map, architecture, entrypoint, module, subsystem, surface, export, public API, rg).
 ---
 
 # Lsp Map Feature Surface
 
 ## Overview
 
-Create a deterministic feature map for a named subsystem by using LSP symbol search, definition lookup, and bounded reference counts to rank importance and highlight hotspots.
+Create a deterministic feature map for a named subsystem using rg recon plus LSP symbol search, definition lookup, and bounded reference counts.
 
-## Workflow
+## Workflow (rg recon -> LSP confirm)
 
-### 1. Collect candidate symbols
+### 1. Recon to find the surface (rg)
+
+- Find mentions of the feature/module name: `rg -n "\\b<feature>\\b" src/`
+- Find exports/public surface files: `rg -n "\\b(export\\s+(\\{|\\*|class|function|interface|type))\\b" src/`
+- Identify candidate public surface files (index.ts, public.ts, api.ts, commands, router modules).
+
+### 2. Collect candidate symbols (LSP)
 
 - Input: query string (feature/module name) and optional file/folder focus.
 - Call `workspaceSymbols` with the query.
@@ -19,7 +25,7 @@ Create a deterministic feature map for a named subsystem by using LSP symbol sea
 - Take the top N (default 30; cap at 50).
 - If focus is provided, prefer symbols whose `uri` is under that focus; drop others only if you still have >= 10 candidates.
 
-### 2. Resolve definitions and references
+### 3. Resolve definitions and references
 
 For each candidate symbol (in the sorted order):
 
@@ -27,7 +33,7 @@ For each candidate symbol (in the sorted order):
 - Call `references` to count uses. Page through results with a hard cap (default 200 total references per symbol). Record `refCount` and `refCapped`.
 - If definition is missing or out of bounds, skip the symbol.
 
-### 3. Rank and summarize
+### 4. Rank and summarize
 
 - Rank symbols by `refCount` desc, then by `name`, `kind`, `uri`, `line`, `character`.
 - Classify:

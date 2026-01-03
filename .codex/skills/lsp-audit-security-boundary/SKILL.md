@@ -1,89 +1,57 @@
 ---
 name: lsp-audit-security-boundary
-description: 'Map and verify security enforcement points using LSP navigation (symbols, references, definitions) to prove authn/authz, validation, origin checks, URI gating, and redaction. Use for security boundary audits, guard-rail verification, and bypass surface analysis (keywords: auth, validate, sanitize, redact, token, secret, permission). Produces a deterministic guard map table with evidence locations.'
-compatibility: Works in Codex CLI and Codex IDE. Requires LSP tools and read access only. No network required.
-metadata:
-  owner: askahn
-  version: '0.1'
-  maturity: draft
-  short-description: LSP-based security guard map
-license: Proprietary
+description: Identify and trace security enforcement points using rg + VS Code LSP to prove authn/authz, validation, origin checks, URI gating, and redaction, and to surface potential bypasses. Use for security boundary audits and guard-rail verification (keywords: auth, authenticate, authorize, token, secret, validate, sanitize, redact, origin, csrf, permission, guard, rg, ripgrep). Output a deterministic guard map with evidence locations.
 ---
 
-# LSP Security Boundary Audit
+# Lsp Audit Security Boundary
 
 ## Purpose
 
-Produce a deterministic "guard surface map" that proves where security gates are enforced and where bypasses might exist.
-
-## When to use
-
-- Verify security enforcement in a codebase using LSP traceability rather than grep
-- Identify bypass surfaces for auth, validation, origin checks, URI gating, or redaction
-- Produce evidence-linked guard maps for review checklists
+Prove security gates exist and identify bypass surfaces using rg recon followed by LSP validation.
 
 ## Inputs
 
-Required:
+Provide:
 
-- Guard keywords (default set: auth, validate, sanitize, redact, token, secret, permission)
+- Guard keywords (default set: auth, authenticate, authorize, token, secret, validate, sanitize, redact, origin, csrf, permission, guard).
 
 Optional:
 
-- Entrypoint symbol names (e.g., router handlers, server start functions)
-- Scope constraints (paths or modules to focus on)
+- Entrypoint symbol names or HTTP route names.
+- Paths/modules to scope search.
 
-## Outputs
+## Output format
 
-- Deterministic guard map table: guard symbol -> enforced at -> protects -> potential bypass -> evidence locations
+Return a deterministic guard map table:
 
-## Prerequisites
+`guard symbol -> enforced at -> protects what -> potential bypass -> evidence locations`
 
-System requirements:
+## Procedure (rg recon -> LSP confirm)
 
-- LSP tool access (workspaceSymbols, references, definition)
-
-Permissions required:
-
-- Read-only access to workspace files
-
-## Procedure
-
-1. If running in IDE and a selection or active file is present, treat it as the initial scope. In CLI, ask for 1-3 likely paths if scope is unclear.
-2. Use `workspaceSymbols` with guard keywords to collect candidate guard symbols. Record symbol name, kind, and location.
-3. For each guard symbol, use paged `references` to identify all call sites. Collect locations and enclosing symbols.
-4. Follow key call chains with `definition` to confirm what the guard actually enforces (avoid name-only inference).
-5. Identify entrypoints that do not flow through any guard. Mark these as potential bypasses.
-6. Produce the guard map table with stable ordering (sort by guard symbol name, then by location path and position).
+1. Recon with rg to build a guard shortlist:
+   - Broad pass: `rg -n "\\b(auth|authenticate|authorize|token|secret|redact|sanitize|validate|origin|csrf)\\b" src/`
+   - Targeted pass (project conventions):
+     - Error codes: `rg -n "WORKSPACE_DENIED|URI_INVALID|INVALID_PARAMS|CAP_EXCEEDED"`
+     - Header checks: `rg -n -F "Authorization"`, `rg -n -F "Origin"`
+   - From hits, extract candidate guard functions and enforcement chokepoints (router/middleware/validators).
+2. Confirm guards are real guards with LSP:
+   - Run `workspaceSymbols` for each candidate guard symbol; open definitions.
+   - Use paged `references` to enumerate enforcement sites.
+3. Build the bypass map:
+   - Follow `definition` from entrypoints into guard calls.
+   - Identify callers that handle sensitive work without passing through guards.
+4. Summarize as a deterministic guard surface map with evidence locations.
 
 ## Verification
 
-Confirm:
+Confirm that:
 
-- Each guard symbol in the map has at least one evidence location
-- Output ordering is stable and deterministic across runs
-- Potential bypasses list only entrypoints with no guard call path
+- Each guard symbol has evidence locations.
+- Output ordering is stable and deterministic.
+- Bypass list only includes entrypoints with no guard call path.
 
 ## Failure modes
 
-- Too many irrelevant symbols: narrow keywords or add entrypoint scope
-- Missing references due to symbol indexing: open the file in IDE or retry after indexing completes
-- Ambiguous enforcement: follow additional `definition` hops until the enforced condition is clear
-
-## Examples
-
-### Should trigger
-
-- "Map auth and validation guards in this server and show bypass surfaces."
-- "Use LSP references to prove where origin checks and URI gating happen."
-- "Generate a guard surface map for auth/redaction in this extension."
-
-### Should NOT trigger
-
-- "Explain how authentication works in general."
-- "Refactor this function for readability."
-- "Write unit tests for this module."
-
-## Resources
-
-- None
+- Too many irrelevant hits: narrow keywords or add scope paths.
+- Missing references: confirm LSP indexing or open the file before retrying.
+- Ambiguous enforcement: follow additional `definition` hops.
